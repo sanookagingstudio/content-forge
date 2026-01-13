@@ -1,10 +1,12 @@
 {
-  \"name\":\"content-forge-cli\",
-  \"version\":\"0.3.1\",
-  \"private\":true,
-  \"main\":\"index.js\",
-  \"dependencies\":{
-    \"@content-forge/config\":\"0.3.1\",
-    \"@content-forge/core\":\"0.3.1\"
-  }
+  "name": "content-forge-cli",
+  "private": true,
+  "version": "0.3.4",
+  "main": "index.js",
+  "scripts": {
+    "build": "node -c index.js",
+    "test": "node -c index.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
 }
