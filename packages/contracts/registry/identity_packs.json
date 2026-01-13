@@ -1,0 +1,37 @@
+{
+  \"identity_packs\": [
+    {
+      \"id\":\"REAL_STAFF_DEMO_v1\",
+      \"type\":\"REAL_HUMAN\",
+      \"display_name\":\"Staff Demo (placeholder)\",
+      \"consent\":{\"required\":true,\"scope\":[\"youtube\",\"tiktok\",\"facebook\"],\"expires_at\":null},
+      \"assets\":{\"refs\":[\"refs/staff_demo_01.jpg\"],\"voice_refs\":[\"refs/staff_demo_voice.wav\"]},
+      \"canon_lock\":true,
+      \"version\":\"v1\"
+    },
+    {
+      \"id\":\"AVATAR_BRAND_AMBASSADOR_v1\",
+      \"type\":\"AI_HUMAN\",
+      \"display_name\":\"Brand Ambassador (AI Avatar)\",
+      \"assets\":{\"refs\":[\"refs/avatar_face_v1.png\"],\"voice_refs\":[\"refs/avatar_voice_v1.wav\"]},
+      \"canon_lock\":true,
+      \"version\":\"v1\"
+    },
+    {
+      \"id\":\"CHAR_HIMPAN_MAIN_v1\",
+      \"type\":\"ILLUSTRATED_CHARACTER\",
+      \"display_name\":\"HIMPAN Main Character\",
+      \"assets\":{\"refs\":[\"refs/himpan_char_v1.png\"]},
+      \"canon_lock\":true,
+      \"version\":\"v1\"
+    },
+    {
+      \"id\":\"FACELESS_STOCK_STYLE_v1\",
+      \"type\":\"FACELESS_STYLE_ONLY\",
+      \"display_name\":\"Stock / Faceless Style\",
+      \"assets\":{\"refs\":[\"refs/stock_style_refs.zip\"]},
+      \"canon_lock\":false,
+      \"version\":\"v1\"
+    }
+  ]
+}

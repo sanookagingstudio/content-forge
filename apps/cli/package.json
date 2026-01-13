@@ -1,1 +1,10 @@
-{"name":"content-forge-cli","version":"0.2.4","private":true,"main":"index.js","dependencies":{"@content-forge/config":"0.2.4"}}
+{
+  \"name\":\"content-forge-cli\",
+  \"version\":\"0.3.1\",
+  \"private\":true,
+  \"main\":\"index.js\",
+  \"dependencies\":{
+    \"@content-forge/config\":\"0.3.1\",
+    \"@content-forge/core\":\"0.3.1\"
+  }
+}

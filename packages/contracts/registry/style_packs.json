@@ -1,0 +1,25 @@
+{
+  \"style_packs\": [
+    {
+      \"id\":\"STYLE_HIMPAN_CANON_v1\",
+      \"display_name\":\"HIMPAN Canon Thai Motifs v1\",
+      \"domain\":\"HIMPAN\",
+      \"references\":{\"positive\":[\"refs/style/himpan_pos_01.png\"],\"negative\":[\"refs/style/china_pattern_neg_01.png\"]},
+      \"motifs\":[\"thai_motif\",\"himpan_creatures\",\"thai_classical_pattern\"],
+      \"banned_motifs\":[\"chinese_dragon_pattern\",\"hanfu_motif\"],
+      \"fidelity_rules\":[
+        {\"id\":\"R1\",\"severity\":\"FAIL\",\"check\":\"MOTIF_MISMATCH\",\"note\":\"HIMPAN must not output Chinese patterns.\"},
+        {\"id\":\"R2\",\"severity\":\"FAIL\",\"check\":\"CULTURE_MISMATCH\",\"note\":\"Thai classical motifs only.\"}
+      ]
+    },
+    {
+      \"id\":\"STYLE_JP_TRAVEL_DOCU_v1\",
+      \"display_name\":\"Japan Travel Documentary v1\",
+      \"domain\":\"JP_TRAVEL\",
+      \"references\":{\"positive\":[\"refs/style/jp_pos_01.jpg\"],\"negative\":[\"refs/style/wrong_arch_neg_01.jpg\"]},
+      \"fidelity_rules\":[
+        {\"id\":\"J1\",\"severity\":\"FAIL\",\"check\":\"TEXT_WRONG_SCRIPT\",\"note\":\"Avoid wrong scripts; prefer plausible JP signage.\"}
+      ]
+    }
+  ]
+}

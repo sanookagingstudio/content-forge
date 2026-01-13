@@ -1,1 +1,6 @@
-{"name":"@content-forge/config","version":"0.2.4","main":"index.js","dependencies":{"dotenv":"^16.4.5","zod":"^3.23.8"}}
+{
+  "name":"@content-forge/config",
+  "version":"0.3.1",
+  "main":"index.js",
+  "dependencies":{"dotenv":"^16.4.5","zod":"^3.23.8"}
+}
