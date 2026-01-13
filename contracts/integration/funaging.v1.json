@@ -1,0 +1,1 @@
+{ "version":"v1", "endpoints": { "web_base":"http://localhost:3000", "forge_api_base":"http://localhost:4000" } }

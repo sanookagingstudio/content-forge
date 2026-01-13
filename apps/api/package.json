@@ -1,0 +1,1 @@
+{"name":"content-forge-api","version":"0.2.4","private":true,"main":"server.js","scripts":{"dev":"node server.js"},"dependencies":{"fastify":"^4.28.1","@fastify/cors":"^9.0.0","@content-forge/config":"0.2.4"}}

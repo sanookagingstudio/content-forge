@@ -1,0 +1,10 @@
+node_modules
+dist
+.next
+out
+.vercel
+artifacts
+_onepack_runs
+.secrets
+.DS_Store
+data
