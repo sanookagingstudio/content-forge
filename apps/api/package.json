@@ -1,13 +1,12 @@
 {
   "name": "content-forge-api",
   "private": true,
-  "version": "0.3.4",
+  "version": "0.3.6",
   "main": "server.js",
   "scripts": {
-    "dev": "node server.js",
-    "build": "node -c server.js",
-    "test": "node -c server.js"
+    "dev": "node server.js"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "fastify": "^4.28.0"
+  }
 }

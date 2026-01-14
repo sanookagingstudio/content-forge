@@ -1,9 +1,9 @@
 {
-  "name": "content-forge-monorepo",
+  "name": "content-forge-root",
   "private": true,
   "workspaces": ["apps/*","packages/*"],
   "scripts": {
-    "doctor": "node apps/cli/index.js doctor",
-    "dev": "node tools/dev.js"
+    "dev": "node tools/dev.js",
+    "smoke": "node tools/smoke.js"
   }
 }
