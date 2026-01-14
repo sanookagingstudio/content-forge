@@ -7,7 +7,7 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "@content-forge/core": "workspace:*",
+    "@content-forge/core": "0.3.4",
     "fastify": "^4.28.0",
     "@fastify/cors": "*"
   }

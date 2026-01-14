@@ -1,5 +1,5 @@
 {
-  "name": "content-forge-core",
+  "name": "@content-forge/core",
   "private": true,
   "version": "0.3.4",
   "main": "index.js",
@@ -10,3 +10,4 @@
   "dependencies": {},
   "devDependencies": {}
 }
+
