@@ -1,9 +1,14 @@
 {
   "name": "content-forge-root",
   "private": true,
-  "workspaces": ["apps/*","packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "node tools/dev.js",
-    "smoke": "node tools/smoke.js"
+    "smoke": "node tools/smoke.js",
+    "doctor": "node tools/doctor.js"
   }
 }
+
