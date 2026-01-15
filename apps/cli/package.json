@@ -4,9 +4,21 @@
   "version": "0.3.4",
   "main": "index.js",
   "scripts": {
-    "build": "node -c index.js",
-    "test": "node -c index.js"
+    "build": "node -e \"console.log('noop build for v1')\"",
+    "test": "node -c index.js",
+    "dev": "tsx src/index.ts",
+    "start": "node src/index.ts"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "commander": "^12.1.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "@types/node": "^22.10.2"
+  },
+  "bin": {
+    "content-forge": "src/index.ts"
+  }
 }

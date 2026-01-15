@@ -8,7 +8,10 @@
   "scripts": {
     "dev": "node tools/dev.js",
     "smoke": "node tools/smoke.js",
-    "doctor": "node tools/doctor.js"
+    "doctor": "node tools/doctor.js",
+    "dev:api": "npm --prefix apps/api run dev",
+    "dev:web": "npm --prefix apps/web run dev",
+    "db:migrate": "npm --prefix apps/api run db:migrate",
+    "db:seed": "npm --prefix apps/api run db:seed"
   }
 }
-
