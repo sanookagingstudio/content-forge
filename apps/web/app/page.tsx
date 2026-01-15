@@ -1,36 +1,26 @@
-import { api } from '../src/lib/api';
+import Link from 'next/link';
 
-export default async function Dashboard() {
-  const [brands, personas, plans] = await Promise.all([
-    api.listBrands(),
-    api.listPersonas(),
-    api.listPlans(),
-  ]);
-
-  const brandCount = brands.ok ? brands.data.length : 0;
-  const personaCount = personas.ok ? personas.data.length : 0;
-  const planCount = plans.ok ? plans.data.length : 0;
-
+export default function Dashboard() {
   return (
     <div>
       <h1 style={{ marginTop: 0 }}>Dashboard</h1>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-        <Card title="Brands" value={brandCount} />
-        <Card title="Personas" value={personaCount} />
-        <Card title="Plans" value={planCount} />
-      </div>
-      <p style={{ marginTop: 16, color: '#444' }}>
-        This is the V1 foundation UI: basic CRUD surfaces for brands/personas/plans and deterministic job generation.
+      <p style={{ marginTop: 16, color: '#444', marginBottom: 24 }}>
+        Welcome to Content Forge V1 Foundation. Manage your content creation workflow.
       </p>
-    </div>
-  );
-}
-
-function Card({ title, value }: { title: string; value: number }) {
-  return (
-    <div style={{ border: '1px solid #eee', borderRadius: 10, padding: 16, width: 220 }}>
-      <div style={{ color: '#666', fontSize: 12 }}>{title}</div>
-      <div style={{ fontSize: 32, fontWeight: 700 }}>{value}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Link href="/brands" style={{ display: 'block', padding: 12, border: '1px solid #eee', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>
+          <strong>Brands</strong> — Manage brand definitions and voice
+        </Link>
+        <Link href="/personas" style={{ display: 'block', padding: 12, border: '1px solid #eee', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>
+          <strong>Personas</strong> — Define target audience personas
+        </Link>
+        <Link href="/planner" style={{ display: 'block', padding: 12, border: '1px solid #eee', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>
+          <strong>Planner</strong> — Create and manage content plans
+        </Link>
+        <Link href="/jobs" style={{ display: 'block', padding: 12, border: '1px solid #eee', borderRadius: 8, textDecoration: 'none', color: 'inherit' }}>
+          <strong>Jobs</strong> — View content generation jobs
+        </Link>
+      </div>
     </div>
   );
 }
