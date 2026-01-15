@@ -9,7 +9,7 @@
   "dependencies": {
     "@content-forge/core": "0.3.4",
     "fastify": "^4.28.0",
-    "@fastify/cors": "*"
+    "@fastify/cors": "9.0.1"
   }
 }
 
