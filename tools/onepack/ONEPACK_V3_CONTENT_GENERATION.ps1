@@ -191,8 +191,10 @@ try {
   $brandId = $null
   if($probeGreen){
     try {
+      # Use unique name with timestamp to avoid conflicts
+      $brandName = "Test Brand V3 $stamp"
       $brandReq = @{
-        name = "Test Brand V3"
+        name = $brandName
         voiceTone = "เป็นกันเอง, สนุกสนาน"
         prohibitedTopics = "การเมือง, เนื้อหาที่ไม่เหมาะสม"
         targetAudience = "ผู้สูงอายุ 50-70 ปี"
@@ -208,7 +210,7 @@ try {
         $brandRes = $respBody | ConvertFrom-Json
         if($brandRes.ok){
           $brandId = $brandRes.data.id
-          Write-Host "Created brand: $brandId"
+          Write-Host "Created brand: $brandId ($brandName)"
         } else {
           $blockers += "Failed to create test brand: $($brandRes.error.message)"
         }
