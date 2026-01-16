@@ -355,10 +355,36 @@ $(if($blockers.Count -gt 0){($blockers | ForEach-Object { "- $_" }) -join "`r`n"
   try { 
     if($devProc -and -not $devProc.HasExited){ 
       Write-Host "[cleanup] Stopping dev servers..."
+      # Try graceful stop first
       Stop-Process -Id $devProc.Id -Force -ErrorAction SilentlyContinue 
       Start-Sleep -Seconds 2
+      
+      # Force kill child processes on ports 3000/4000
+      $ports = @(3000, 4000)
+      foreach($port in $ports){
+        $listeners = netstat -ano | Select-String ":$port\s"
+        if($listeners){
+          foreach($line in $listeners){
+            $parts = $line -split '\s+'
+            $procId = $parts[-1]
+            if($procId -match '^\d+$' -and $procId -ne $PID){
+              Write-Host "[cleanup] Killing PID $procId on port $port"
+              taskkill /F /PID $procId /T 2>&1 | Out-Null
+            }
+          }
+        }
+      }
+      
+      # Fallback: force kill the parent process tree
+      if(-not $devProc.HasExited){
+        Write-Host "[cleanup] Force killing process tree for PID $($devProc.Id)"
+        taskkill /F /PID $devProc.Id /T 2>&1 | Out-Null
+      }
+      Start-Sleep -Seconds 1
     } 
-  } catch {}
+  } catch {
+    Write-Host "[cleanup] Error during cleanup: $_"
+  }
   Stop-Transcript | Out-Null
 }
 
