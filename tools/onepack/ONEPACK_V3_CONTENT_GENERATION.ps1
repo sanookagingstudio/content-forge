@@ -105,9 +105,11 @@ try {
 
   # ---- Step 2: Prisma Generate + Migrate
   Write-Host "=== Step 2: Prisma Generate + Migrate ==="
+  $env:DATABASE_URL = "file:./apps/api/prisma/dev.db"
   try {
     Exec "npm --prefix apps/api run db:generate" | Out-Null
-    Exec "npm --prefix apps/api run db:migrate" | Out-Null
+    $migrateCmd = "cd apps/api && set DATABASE_URL=file:./prisma/dev.db && npm run db:migrate"
+    Exec $migrateCmd | Out-Null
     $prismaOk = $true
   } catch {
     $prismaOk = $false
@@ -122,8 +124,9 @@ try {
   $devErrPath = Join-Path $runDir "dev.err.log"
 
   try {
-    $devProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c npm run dev" -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput $devOutPath -RedirectStandardError $devErrPath
-    Start-Sleep -Seconds 5
+    $env:DATABASE_URL = "file:./apps/api/prisma/dev.db"
+    $devProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c set DATABASE_URL=file:./apps/api/prisma/dev.db && npm run dev" -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput $devOutPath -RedirectStandardError $devErrPath
+    Start-Sleep -Seconds 8
 
     $web = Probe "http://localhost:3000" 180
     $api = Probe "http://localhost:4000/health" 180
