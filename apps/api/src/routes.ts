@@ -11,13 +11,32 @@ import {
 } from './schemas';
 import { generateDeterministic } from './generator';
 import { generateContentV3 } from './generator-v3';
-import { analyzeInputs } from './jarvis';
+import { analyzeInputs } from './generator/jarvis';
+import { selectProvider } from './capabilities/selector';
+import { getProviderById, getProvidersByKind } from './capabilities/registry';
+import { executeMockText } from './capabilities/providers/mockText';
+import { enrichSentinel } from './sentinel/enrich';
 import fs from 'node:fs';
 import path from 'node:path';
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get('/health', async () => {
     return { ok: true, service: 'api', ts: new Date().toISOString() };
+  });
+
+  // Capabilities
+  app.get('/v1/capabilities', async () => {
+    const providers = await prisma.capabilityProvider.findMany({ orderBy: { createdAt: 'desc' } });
+    return {
+      ok: true,
+      data: providers.map(p => ({
+        ...p,
+        supports: safeJson(p.supports, []),
+        regions: safeJson(p.regions, []),
+        languages: safeJson(p.languages, []),
+        policyTags: safeJson(p.policyTags, []),
+      })),
+    };
   });
 
   // Brands
@@ -193,6 +212,28 @@ export async function registerRoutes(app: FastifyInstance) {
         platforms: body.platforms,
       });
 
+      // Run Sentinel enrichment
+      const sentinel = enrichSentinel({
+        topic: body.topic,
+        objective: body.objective,
+        platforms: body.platforms,
+      });
+
+      // Select provider
+      const selectorResult = await selectProvider({
+        kind: 'text', // For now, only text generation
+        objective: body.objective,
+        language: body.options?.language ?? 'th',
+        policy: body.options?.policy ?? 'strict',
+        jarvisAdvisory: advisory,
+      });
+
+      const selectedProvider = await getProviderById(selectorResult.providerId);
+      if (!selectedProvider) {
+        reply.code(500);
+        return apiError('INTERNAL_ERROR', 'Selected provider not found');
+      }
+
       // Create job
       const job = await prisma.contentJob.create({
         data: {
@@ -201,26 +242,33 @@ export async function registerRoutes(app: FastifyInstance) {
           inputsJson: JSON.stringify(body),
           outputsJson: JSON.stringify({}),
           advisoryJson: JSON.stringify(advisory),
+          selectedProviderId: selectorResult.providerId,
+          selectorJson: JSON.stringify(selectorResult),
+          sentinelJson: JSON.stringify(sentinel),
           costJson: JSON.stringify({ tokens: 0, currency: 'N/A' }),
           logsJson: JSON.stringify([{ at: new Date().toISOString(), msg: 'Queued' }]),
         }
       });
 
-      // Generate content (V3 - structured output)
+      // Execute selected provider
       const seed = body.options?.deterministicSeed ?? job.id;
-      const generatedContent = generateContentV3({
-        brandName: brand.name,
-        voiceTone: brand.voiceTone,
-        prohibitedTopics: brand.prohibitedTopics,
-        targetAudience: brand.targetAudience,
-        topic: body.topic,
-        objective: body.objective,
-        cta: plan?.cta || '',
-        platforms: body.platforms,
-        language: body.options?.language ?? 'th',
-        seed,
-        personaName: persona?.name,
-      });
+      const providerResult = await executeMockText(
+        selectedProvider.id,
+        selectedProvider.name,
+        {
+          brandName: brand.name,
+          voiceTone: brand.voiceTone,
+          prohibitedTopics: brand.prohibitedTopics,
+          targetAudience: brand.targetAudience,
+          topic: body.topic,
+          objective: body.objective,
+          cta: plan?.cta || '',
+          platforms: body.platforms,
+          language: body.options?.language ?? 'th',
+          seed,
+          personaName: persona?.name,
+        }
+      );
 
       // Save artifact
       const artifactsDir = path.join(process.cwd(), 'artifacts', 'jobs');
@@ -231,7 +279,15 @@ export async function registerRoutes(app: FastifyInstance) {
         planId: plan?.id || null,
         createdAt: new Date().toISOString(),
         advisory,
-        outputs: generatedContent,
+        sentinel,
+        selectorReason: selectorResult.reason,
+        selectedProvider: {
+          id: selectedProvider.id,
+          name: selectedProvider.name,
+          kind: selectedProvider.kind,
+        },
+        providerTrace: providerResult.providerTrace,
+        outputs: providerResult.outputs,
       }, null, 2), 'utf8');
 
       // Update job with outputs
@@ -239,10 +295,11 @@ export async function registerRoutes(app: FastifyInstance) {
         where: { id: job.id },
         data: {
           status: 'succeeded',
-          outputsJson: JSON.stringify(generatedContent),
+          outputsJson: JSON.stringify(providerResult.outputs),
           logsJson: JSON.stringify([
             { at: new Date().toISOString(), msg: 'Queued' },
-            { at: new Date().toISOString(), msg: 'Generated content (V3)', artifactPath },
+            { at: new Date().toISOString(), msg: 'Selected provider', provider: selectedProvider.name },
+            { at: new Date().toISOString(), msg: 'Generated content', artifactPath },
           ]),
         }
       });
@@ -253,7 +310,15 @@ export async function registerRoutes(app: FastifyInstance) {
         data: { 
           ...updated, 
           advisory,
-          outputs: generatedContent, 
+          sentinel,
+          selectorReason: selectorResult.reason,
+          selectedProvider: {
+            id: selectedProvider.id,
+            name: selectedProvider.name,
+            kind: selectedProvider.kind,
+          },
+          providerTrace: providerResult.providerTrace,
+          outputs: providerResult.outputs, 
           artifactPath 
         } 
       };

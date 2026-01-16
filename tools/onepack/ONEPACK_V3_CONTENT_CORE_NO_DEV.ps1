@@ -110,7 +110,7 @@ const prisma = new PrismaClient();
       console.log(JSON.stringify({ ok: false, reason: 'job missing or incomplete' }));
     }
   } finally {
-    await prisma.$disconnect();
+    await prisma.`$disconnect();
   }
 })();
 "@

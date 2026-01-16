@@ -40,14 +40,15 @@ export const JobGenerateSchema = z.object({
   brandId: z.string().min(1).optional(),
   personaId: z.string().optional(),
   topic: z.string().min(1),
-  objective: z.string().min(1),
+  objective: z.enum(['quality', 'cost', 'speed']).default('quality'),
   platforms: z.array(z.enum(['facebook', 'instagram', 'tiktok', 'youtube'])).default(['facebook']),
   options: z.object({
     language: z.enum(['th','en']).default('th'),
     deterministicSeed: z.string().optional(),
     tone: z.string().optional(),
     length: z.enum(['short', 'medium', 'long']).optional(),
-  }).default({ language: 'th' }),
+    policy: z.string().default('strict'),
+  }).default({ language: 'th', policy: 'strict' }),
 }).refine((data) => data.planId || data.brandId, {
   message: "Either planId or brandId must be provided",
   path: ["brandId"],

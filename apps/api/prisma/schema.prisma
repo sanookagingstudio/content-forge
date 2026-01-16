@@ -73,20 +73,43 @@ model ContentPlan {
   jobs   ContentJob[]
 }
 
-model ContentJob {
-  id          String    @id @default(cuid())
-  planId      String
-  status      JobStatus
-  inputsJson  String
-  outputsJson String
-  advisoryJson String   @default("{}") // Jarvis advisory warnings/suggestions
-  costJson    String
-  logsJson    String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model CapabilityProvider {
+  id            String   @id @default(cuid())
+  kind          String   // "text" | "image" | "video"
+  name          String
+  version       String
+  supports      String   // JSON string: supported features
+  costTier      String   // "cheap" | "standard" | "premium"
+  qualityTier   String   // "fast" | "standard" | "hq"
+  speedTier     String   // "fast" | "standard" | "slow"
+  regions       String   // JSON list
+  languages     String   // JSON list
+  policyTags    String   // JSON list e.g. ["safe","strict","adult_warn"]
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  plan   ContentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  assets Asset[]
+  jobs ContentJob[]
+}
+
+model ContentJob {
+  id                String    @id @default(cuid())
+  planId            String
+  status            JobStatus
+  inputsJson        String
+  outputsJson       String
+  advisoryJson      String    @default("{}") // Jarvis advisory warnings/suggestions
+  selectedProviderId String?
+  selectorJson      String    @default("{}") // reason, score, chosen
+  sentinelJson      String    @default("{}") // optional enrichment signals
+  costJson          String
+  logsJson          String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  plan            ContentPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  selectedProvider CapabilityProvider? @relation(fields: [selectedProviderId], references: [id], onDelete: SetNull)
+  assets          Asset[]
 }
 
 model Asset {

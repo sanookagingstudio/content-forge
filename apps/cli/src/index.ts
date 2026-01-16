@@ -25,8 +25,32 @@ program
   .command('status')
   .description('Check health endpoints (web+api)')
   .action(async () => {
-    const api = await http('/health');
-    console.log(JSON.stringify({ ok: true, apiBase, api }, null, 2));
+    try {
+      const api = await http('/health');
+      console.log(JSON.stringify({ ok: true, apiBase, api }, null, 2));
+    } catch (e: any) {
+      console.error(JSON.stringify({ ok: false, error: e.message, apiBase }, null, 2));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('capabilities')
+  .description('List capability providers')
+  .command('list')
+  .action(async () => {
+    try {
+      const res = await http('/v1/capabilities');
+      if (res.status === 200 && res.json.ok) {
+        console.log(JSON.stringify(res.json.data, null, 2));
+      } else {
+        console.error(JSON.stringify({ ok: false, error: 'API unavailable', apiBase }, null, 2));
+        process.exit(1);
+      }
+    } catch (e: any) {
+      console.error(JSON.stringify({ ok: false, error: e.message, apiBase, note: 'API unavailable - ensure dev server is running' }, null, 2));
+      process.exit(1);
+    }
   });
 
 program
@@ -51,13 +75,58 @@ program
   .command('job')
   .description('Job operations')
   .command('run')
-  .argument('<planId>', 'Plan ID')
+  .argument('[planId]', 'Plan ID (optional if brandId provided)')
+  .option('--brandId <id>', 'Brand ID')
+  .option('--personaId <id>', 'Persona ID')
+  .option('--topic <topic>', 'Topic (required)')
+  .option('--objective <quality|cost|speed>', 'Objective', 'quality')
+  .option('--platforms <platforms>', 'Comma-separated platforms', 'facebook')
   .option('--lang <th|en>', 'Language', 'th')
   .option('--seed <seed>', 'Deterministic seed')
   .action(async (planId, opts) => {
-    const body = { planId, options: { language: opts.lang, deterministicSeed: opts.seed } };
-    const r = await http('/v1/jobs/generate', { method: 'POST', body: JSON.stringify(body) });
-    console.log(JSON.stringify({ ok: true, apiBase, result: r }, null, 2));
+    if (!planId && !opts.brandId) {
+      console.error(JSON.stringify({ ok: false, error: 'Either planId or --brandId must be provided' }, null, 2));
+      process.exit(1);
+    }
+    if (!opts.topic) {
+      console.error(JSON.stringify({ ok: false, error: '--topic is required' }, null, 2));
+      process.exit(1);
+    }
+
+    const platforms = opts.platforms.split(',').map((p: string) => p.trim());
+    const body: any = {
+      topic: opts.topic,
+      objective: opts.objective,
+      platforms,
+      options: {
+        language: opts.lang,
+        deterministicSeed: opts.seed,
+        policy: 'strict',
+      },
+    };
+
+    if (planId) {
+      body.planId = planId;
+    }
+    if (opts.brandId) {
+      body.brandId = opts.brandId;
+    }
+    if (opts.personaId) {
+      body.personaId = opts.personaId;
+    }
+
+    try {
+      const r = await http('/v1/jobs/generate', { method: 'POST', body: JSON.stringify(body) });
+      if (r.status === 201 && r.json.ok) {
+        console.log(JSON.stringify({ ok: true, apiBase, result: r.json.data }, null, 2));
+      } else {
+        console.error(JSON.stringify({ ok: false, error: r.json.error || 'API error', apiBase, result: r }, null, 2));
+        process.exit(1);
+      }
+    } catch (e: any) {
+      console.error(JSON.stringify({ ok: false, error: e.message, apiBase, note: 'API unavailable - ensure dev server is running' }, null, 2));
+      process.exit(1);
+    }
   });
 
 program.parseAsync(process.argv).catch((e) => {

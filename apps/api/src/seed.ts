@@ -100,6 +100,98 @@ async function main() {
     });
   }
 
+  // Capability Providers
+  const textProviders = [
+    {
+      name: 'mock-text-fast',
+      version: '1.0.0',
+      speedTier: 'fast',
+      qualityTier: 'fast',
+      costTier: 'cheap',
+      policyTags: ['safe'],
+      isDefault: false,
+    },
+    {
+      name: 'mock-text-hq',
+      version: '1.0.0',
+      speedTier: 'standard',
+      qualityTier: 'hq',
+      costTier: 'premium',
+      policyTags: ['strict', 'safe'],
+      isDefault: true,
+    },
+    {
+      name: 'mock-text-cheap',
+      version: '1.0.0',
+      speedTier: 'standard',
+      qualityTier: 'standard',
+      costTier: 'cheap',
+      policyTags: ['safe'],
+      isDefault: false,
+    },
+  ];
+
+  for (const p of textProviders) {
+    await prisma.capabilityProvider.upsert({
+      where: { id: `seed-provider-${p.name}` },
+      update: {},
+      create: {
+        id: `seed-provider-${p.name}`,
+        kind: 'text',
+        name: p.name,
+        version: p.version,
+        supports: JSON.stringify(['thai', 'english', 'deterministic']),
+        costTier: p.costTier,
+        qualityTier: p.qualityTier,
+        speedTier: p.speedTier,
+        regions: JSON.stringify(['global']),
+        languages: JSON.stringify(['th', 'en']),
+        policyTags: JSON.stringify(p.policyTags),
+        isDefault: p.isDefault,
+      },
+    });
+  }
+
+  // Image provider placeholder
+  await prisma.capabilityProvider.upsert({
+    where: { id: 'seed-provider-mock-image' },
+    update: {},
+    create: {
+      id: 'seed-provider-mock-image',
+      kind: 'image',
+      name: 'mock-image',
+      version: '1.0.0',
+      supports: JSON.stringify(['prompt', 'shotlist']),
+      costTier: 'standard',
+      qualityTier: 'standard',
+      speedTier: 'standard',
+      regions: JSON.stringify(['global']),
+      languages: JSON.stringify(['th', 'en']),
+      policyTags: JSON.stringify(['safe']),
+      isDefault: true,
+    },
+  });
+
+  // Video provider placeholder
+  await prisma.capabilityProvider.upsert({
+    where: { id: 'seed-provider-mock-video' },
+    update: {},
+    create: {
+      id: 'seed-provider-mock-video',
+      kind: 'video',
+      name: 'mock-video',
+      version: '1.0.0',
+      supports: JSON.stringify(['script', 'shotlist']),
+      costTier: 'premium',
+      qualityTier: 'standard',
+      speedTier: 'slow',
+      regions: JSON.stringify(['global']),
+      languages: JSON.stringify(['th', 'en']),
+      policyTags: JSON.stringify(['safe']),
+      isDefault: true,
+    },
+  });
+
   // Write seed evidence
   const outDir = path.join(process.cwd(), 'artifacts', 'seed');
   fs.mkdirSync(outDir, { recursive: true });
