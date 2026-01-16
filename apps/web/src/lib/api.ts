@@ -92,4 +92,7 @@ export const api = {
   getJob: (id: string) => http<any>(`/v1/jobs/${id}`),
   getCapabilities: () => http<any[]>(`/v1/capabilities`),
   getPolicies: () => http<any[]>(`/v1/policies`),
+  getUniverses: () => http<any[]>(`/v1/universe`),
+  getUniverse: (id: string) => http<any>(`/v1/universe/${id}`),
+  getProduct: (id: string) => http<any>(`/v1/products/${id}`),
 };

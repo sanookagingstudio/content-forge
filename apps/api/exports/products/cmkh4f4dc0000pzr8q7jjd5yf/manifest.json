@@ -1,0 +1,13 @@
+{
+  "productId": "cmkh4f4dc0000pzr8q7jjd5yf",
+  "jobId": "cmkh4f4ad0001pzgsnni578z2",
+  "templateKey": "ebook",
+  "mode": "draft",
+  "createdAt": "2026-01-16T16:56:45.794Z",
+  "files": [
+    {
+      "path": "assets/text.json",
+      "hash": "0c596d741064a2a0afc081cd5368b76368679fc5a4232ecb0bd853e678b6a41b"
+    }
+  ]
+}

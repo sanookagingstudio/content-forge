@@ -42,9 +42,82 @@ model Persona {
   brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 }
 
+model Universe {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  language    String   @default("th")
+  canonJson   String   @default("{}") // high-level rules, tone
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  characters  Character[]
+  series      ContentSeries[]
+  events      CanonEvent[]
+  crossovers  CrossoverRule[]
+  jobs        ContentJob[]
+}
+
+model Character {
+  id          String   @id @default(cuid())
+  universeId  String
+  name        String
+  bio         String
+  traitsJson  String   @default("{}") // personality, speech, visual notes
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  universe    Universe @relation(fields: [universeId], references: [id], onDelete: Cascade)
+}
+
+model CanonEvent {
+  id          String   @id @default(cuid())
+  universeId  String
+  title       String
+  summary     String
+  timeIndex   Int      @default(0) // timeline ordering
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  universe    Universe @relation(fields: [universeId], references: [id], onDelete: Cascade)
+}
+
+model CrossoverRule {
+  id          String   @id @default(cuid())
+  universeId  String
+  fromSeriesId String
+  toSeriesId   String
+  ruleJson    String   @default("{}") // allowed characters, constraints
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  universe    Universe @relation(fields: [universeId], references: [id], onDelete: Cascade)
+}
+
+model ProductTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique // "ebook"|"course"|"stock-pack"|"pod-pack"
+  name        String
+  schemaJson  String   @default("{}") // what files to create
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isActive    Boolean  @default(true)
+}
+
+model ProductExport {
+  id          String   @id @default(cuid())
+  jobId       String
+  templateKey String
+  mode        String   // "draft"|"publish"
+  status      String   @default("created")
+  exportPath  String
+  manifestJson String  @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model ContentSeries {
   id              String   @id @default(cuid())
   brandId         String
+  universeId      String?
   seriesName      String
   pillar          String
   cadence         String
@@ -53,6 +126,7 @@ model ContentSeries {
   updatedAt       DateTime @updatedAt
 
   brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  universe Universe? @relation(fields: [universeId], references: [id], onDelete: SetNull)
   plans ContentPlan[]
 }
 
@@ -105,6 +179,7 @@ model PolicyProfile {
 model ContentJob {
   id                String    @id @default(cuid())
   planId            String
+  universeId        String?
   status            JobStatus
   inputsJson        String
   outputsJson       String
@@ -113,6 +188,7 @@ model ContentJob {
   selectorJson      String    @default("{}") // reason, score, chosen
   sentinelJson      String    @default("{}") // optional enrichment signals
   policyJson        String    @default("{}") // policy evaluation results
+  canonPacketJson   String    @default("{}") // snapshot packet used at generation/export time
   onAirGateRequired Boolean   @default(false) // hard gate marker
   copyrightRiskTier String    @default("unknown") // "low"|"medium"|"high"|"unknown"
   costJson          String
@@ -121,6 +197,7 @@ model ContentJob {
   updatedAt         DateTime  @updatedAt
 
   plan            ContentPlan        @relation(fields: [planId], references: [id], onDelete: Cascade)
+  universe        Universe?          @relation(fields: [universeId], references: [id], onDelete: SetNull)
   selectedProvider CapabilityProvider? @relation(fields: [selectedProviderId], references: [id], onDelete: SetNull)
   assets          Asset[]
 }

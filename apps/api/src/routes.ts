@@ -18,6 +18,8 @@ import { executeMockText } from './capabilities/providers/mockText';
 import { executeMockMusic } from './capabilities/providers/mockMusic';
 import { enrichSentinel } from './sentinel/enrich';
 import { evaluatePolicy } from './policy/evaluate';
+import { buildCanonPacket, attachCanonToJob } from './ip/canon';
+import { exportProduct } from './products/exporter';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -53,6 +55,99 @@ export async function registerRoutes(app: FastifyInstance) {
         ...p,
         rules: safeJson(p.rulesJson, {}),
       })),
+    };
+  });
+
+  // Universe
+  app.get('/v1/universe', async () => {
+    const universes = await prisma.universe.findMany({ orderBy: { createdAt: 'desc' } });
+    return { ok: true, data: universes };
+  });
+
+  app.get('/v1/universe/:id', async (req, reply) => {
+    const id = (req.params as any)?.id as string;
+    const universe = await prisma.universe.findUnique({
+      where: { id },
+      include: {
+        characters: true,
+        events: { orderBy: [{ timeIndex: 'asc' }, { title: 'asc' }] },
+        crossovers: true,
+        series: true,
+      },
+    });
+    if (!universe) {
+      reply.code(404);
+      return apiError('NOT_FOUND', 'Universe not found');
+    }
+    return {
+      ok: true,
+      data: {
+        ...universe,
+        canonRules: safeJson(universe.canonJson, {}),
+        characters: universe.characters.map(c => ({
+          ...c,
+          traits: safeJson(c.traitsJson, {}),
+        })),
+        events: universe.events,
+        crossovers: universe.crossovers.map(c => ({
+          ...c,
+          rule: safeJson(c.ruleJson, {}),
+        })),
+      },
+    };
+  });
+
+  // Characters
+  app.get('/v1/characters', async (req, reply) => {
+    const universeId = (req.query as any)?.universeId as string | undefined;
+    const where = universeId ? { universeId } : {};
+    const characters = await prisma.character.findMany({
+      where,
+      orderBy: { name: 'asc' },
+    });
+    return {
+      ok: true,
+      data: characters.map(c => ({
+        ...c,
+        traits: safeJson(c.traitsJson, {}),
+      })),
+    };
+  });
+
+  // Products
+  app.post('/v1/products/export', async (req, reply) => {
+    try {
+      const body = req.body as { jobId: string; templateKey: string; mode: 'draft' | 'publish' };
+      if (!body.jobId || !body.templateKey || !body.mode) {
+        reply.code(400);
+        return apiError('BAD_REQUEST', 'jobId, templateKey, and mode are required');
+      }
+      const result = await exportProduct({
+        jobId: body.jobId,
+        templateKey: body.templateKey,
+        mode: body.mode,
+      });
+      reply.code(201);
+      return { ok: true, data: result };
+    } catch (e: any) {
+      reply.code(400);
+      return apiError('EXPORT_ERROR', e?.message || 'Export failed', e);
+    }
+  });
+
+  app.get('/v1/products/:id', async (req, reply) => {
+    const id = (req.params as any)?.id as string;
+    const product = await prisma.productExport.findUnique({ where: { id } });
+    if (!product) {
+      reply.code(404);
+      return apiError('NOT_FOUND', 'Product export not found');
+    }
+    return {
+      ok: true,
+      data: {
+        ...product,
+        manifest: safeJson(product.manifestJson, {}),
+      },
     };
   });
 
@@ -303,6 +398,16 @@ export async function registerRoutes(app: FastifyInstance) {
         };
       }
 
+      // Build canon packet if universeId provided
+      let canonPacket = null;
+      if (body.universeId) {
+        try {
+          canonPacket = await buildCanonPacket(body.universeId, body.seriesId);
+        } catch (e: any) {
+          app.log.warn({ error: e }, 'Failed to build canon packet');
+        }
+      }
+
       // Run policy evaluation
       const policyResult = evaluatePolicy({
         kind: assetKinds[0] as any,
@@ -317,6 +422,7 @@ export async function registerRoutes(app: FastifyInstance) {
       const job = await prisma.contentJob.create({
         data: {
           planId: plan.id,
+          universeId: body.universeId || null,
           status: 'queued',
           inputsJson: JSON.stringify(body),
           outputsJson: JSON.stringify(allOutputs),
@@ -325,12 +431,18 @@ export async function registerRoutes(app: FastifyInstance) {
           selectorJson: JSON.stringify({ providerTraces }),
           sentinelJson: JSON.stringify(sentinel),
           policyJson: JSON.stringify(policyResult),
+          canonPacketJson: canonPacket ? JSON.stringify(canonPacket) : '{}',
           onAirGateRequired: policyResult.overall.onAirGateRequired,
           copyrightRiskTier: policyResult.overall.tier,
           costJson: JSON.stringify({ tokens: 0, currency: 'N/A' }),
           logsJson: JSON.stringify([{ at: new Date().toISOString(), msg: 'Queued' }]),
         }
       });
+
+      // Attach canon to outputs meta if canon packet exists
+      if (canonPacket) {
+        await attachCanonToJob(job.id, canonPacket);
+      }
 
       // Save artifact
       const artifactsDir = path.join(process.cwd(), 'artifacts', 'jobs');

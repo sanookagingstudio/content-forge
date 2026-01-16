@@ -212,6 +212,91 @@ program
     }
   });
 
+program
+  .command('universe')
+  .description('Universe operations')
+  .command('show')
+  .option('--id <id>', 'Universe ID')
+  .action(async (opts) => {
+    try {
+      if (opts.id) {
+        const res = await http(`/v1/universe/${opts.id}`);
+        if (res.status === 200 && res.json.ok) {
+          const u = res.json.data;
+          console.log(JSON.stringify({
+            ok: true,
+            universe: {
+              id: u.id,
+              name: u.name,
+              description: u.description,
+              characters: u.characters.map((c: any) => ({ name: c.name, bio: c.bio })),
+              events: u.events.map((e: any) => ({ title: e.title, summary: e.summary })),
+            },
+          }, null, 2));
+        } else {
+          console.error(JSON.stringify({ ok: false, error: 'Universe not found' }, null, 2));
+          process.exit(1);
+        }
+      } else {
+        const res = await http('/v1/universe');
+        if (res.status === 200 && res.json.ok) {
+          console.log(JSON.stringify(res.json.data, null, 2));
+        } else {
+          console.error(JSON.stringify({ ok: false, error: 'API unavailable' }, null, 2));
+          process.exit(1);
+        }
+      }
+    } catch (e: any) {
+      console.error(JSON.stringify({ ok: false, error: e.message, apiBase, note: 'API unavailable - ensure dev server is running' }, null, 2));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('product')
+  .description('Product operations')
+  .command('export')
+  .option('--jobId <id>', 'Job ID (required)')
+  .option('--template <template>', 'Template key (ebook|course|stock-pack|pod-pack)', 'ebook')
+  .option('--mode <mode>', 'Export mode (draft|publish)', 'draft')
+  .action(async (opts) => {
+    if (!opts.jobId) {
+      console.error(JSON.stringify({ ok: false, error: '--jobId is required' }, null, 2));
+      process.exit(1);
+    }
+    try {
+      const res = await http('/v1/products/export', {
+        method: 'POST',
+        body: JSON.stringify({
+          jobId: opts.jobId,
+          templateKey: opts.template,
+          mode: opts.mode,
+        }),
+      });
+      if (res.status === 201 && res.json.ok) {
+        const data = res.json.data;
+        console.log(JSON.stringify({
+          ok: true,
+          productId: data.productId,
+          exportPath: data.exportPath,
+          manifest: {
+            template: data.manifest.templateKey,
+            mode: data.manifest.mode,
+            policyTier: data.manifest.policySummary.tier,
+            gateRequired: data.manifest.policySummary.gateRequired,
+            canonUniverse: data.manifest.canonSummary?.universe,
+          },
+        }, null, 2));
+      } else {
+        console.error(JSON.stringify({ ok: false, error: res.json.error?.message || 'Export failed', apiBase, result: res }, null, 2));
+        process.exit(1);
+      }
+    } catch (e: any) {
+      console.error(JSON.stringify({ ok: false, error: e.message, apiBase, note: 'API unavailable - ensure dev server is running' }, null, 2));
+      process.exit(1);
+    }
+  });
+
 program.parseAsync(process.argv).catch((e) => {
   console.error(e);
   process.exit(1);

@@ -39,6 +39,8 @@ export const JobGenerateSchema = z.object({
   planId: z.string().optional(),
   brandId: z.string().min(1).optional(),
   personaId: z.string().optional(),
+  universeId: z.string().optional(),
+  seriesId: z.string().optional(),
   topic: z.string().min(1),
   objective: z.enum(['quality', 'cost', 'speed']).default('quality'),
   platforms: z.array(z.enum(['facebook', 'instagram', 'tiktok', 'youtube'])).default(['facebook']),

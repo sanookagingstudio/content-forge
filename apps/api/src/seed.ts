@@ -302,6 +302,175 @@ async function main() {
     });
   }
 
+  // Universe and IP Memory
+  const universe = await prisma.universe.upsert({
+    where: { id: 'seed-universe-himmapan' },
+    update: {},
+    create: {
+      id: 'seed-universe-himmapan',
+      name: 'Himmapan Universe',
+      description: 'จักรวาลหิมพานต์ - โลกแห่งตำนานไทยที่รวมตัวละครจากวรรณคดีและตำนาน',
+      language: 'th',
+      canonJson: JSON.stringify({
+        tone: 'มหากาพย์, วีรกรรม, ความกล้าหาญ',
+        rules: ['ตัวละครต้องสอดคล้องกับบุคลิกในวรรณคดี', 'เหตุการณ์ต้องเรียงตามไทม์ไลน์'],
+      }),
+    },
+  });
+
+  // Characters
+  await prisma.character.upsert({
+    where: { id: 'seed-character-hanuman' },
+    update: {},
+    create: {
+      id: 'seed-character-hanuman',
+      universeId: universe.id,
+      name: 'หนุมาน',
+      bio: 'ลิงขาวผู้มีฤทธิ์เดช เป็นทหารเอกของพระราม มีความซื่อสัตย์และกล้าหาญ',
+      traitsJson: JSON.stringify({
+        personality: ['ซื่อสัตย์', 'กล้าหาญ', 'จงรักภักดี'],
+        speech: 'ใช้ภาษาสุภาพ แต่มีพลัง',
+        visual: 'ลิงขาว, ร่างกายแข็งแรง, มีอาวุธคทา',
+      }),
+    },
+  });
+
+  await prisma.character.upsert({
+    where: { id: 'seed-character-kinnaree' },
+    update: {},
+    create: {
+      id: 'seed-character-kinnaree',
+      universeId: universe.id,
+      name: 'กินรี',
+      bio: 'นางฟ้าที่มีรูปร่างครึ่งนกครึ่งคน มีความงามและเสียงเพลงที่ไพเราะ',
+      traitsJson: JSON.stringify({
+        personality: ['สง่างาม', 'มีเสน่ห์', 'รักสวยรักงาม'],
+        speech: 'ใช้ภาษาสละสลวย',
+        visual: 'ครึ่งนกครึ่งคน, สีสันสวยงาม, มีปีก',
+      }),
+    },
+  });
+
+  // Canon Events
+  await prisma.canonEvent.upsert({
+    where: { id: 'seed-event-hanuman-birth' },
+    update: {},
+    create: {
+      id: 'seed-event-hanuman-birth',
+      universeId: universe.id,
+      title: 'กำเนิดหนุมาน',
+      summary: 'หนุมานเกิดจากพระอิศวรและนางสวาหะ มีพลังอำนาจตั้งแต่เกิด',
+      timeIndex: 1,
+    },
+  });
+
+  await prisma.canonEvent.upsert({
+    where: { id: 'seed-event-himmapan-test' },
+    update: {},
+    create: {
+      id: 'seed-event-himmapan-test',
+      universeId: universe.id,
+      title: 'บททดสอบในหิมพานต์',
+      summary: 'หนุมานต้องผ่านการทดสอบต่างๆ ในหิมพานต์เพื่อพิสูจน์ความกล้าหาญ',
+      timeIndex: 2,
+    },
+  });
+
+  // Series linked to universe
+  const series1 = await prisma.contentSeries.upsert({
+    where: { id: 'seed-series-himmapan-short' },
+    update: {},
+    create: {
+      id: 'seed-series-himmapan-short',
+      brandId: brand.id,
+      universeId: universe.id,
+      seriesName: 'ตำนานหิมพานต์ ตอนสั้น',
+      pillar: 'ตำนานไทย',
+      cadence: 'weekly',
+      targetChannelMix: JSON.stringify({ FB: 0.5, IG: 0.5 }),
+    },
+  });
+
+  const series2 = await prisma.contentSeries.upsert({
+    where: { id: 'seed-series-hanuman-deeds' },
+    update: {},
+    create: {
+      id: 'seed-series-hanuman-deeds',
+      brandId: brand.id,
+      universeId: universe.id,
+      seriesName: 'วีรกรรมหนุมาน',
+      pillar: 'วีรกรรม',
+      cadence: 'biweekly',
+      targetChannelMix: JSON.stringify({ FB: 0.6, YouTube: 0.4 }),
+    },
+  });
+
+  // Crossover Rule
+  await prisma.crossoverRule.upsert({
+    where: { id: 'seed-crossover-1' },
+    update: {},
+    create: {
+      id: 'seed-crossover-1',
+      universeId: universe.id,
+      fromSeriesId: series1.id,
+      toSeriesId: series2.id,
+      ruleJson: JSON.stringify({
+        allowedCharacters: ['หนุมาน'],
+        constraints: ['ต้องสอดคล้องกับบุคลิกเดิม', 'ไม่ขัดแย้งกับเหตุการณ์ในไทม์ไลน์'],
+      }),
+    },
+  });
+
+  // Product Templates
+  const productTemplates = [
+    {
+      key: 'ebook',
+      name: 'E-Book Bundle',
+      schemaJson: JSON.stringify({
+        files: ['assets/text.json', 'marketing/captions.json', 'licensing/rights.json'],
+        format: 'digital',
+      }),
+    },
+    {
+      key: 'course',
+      name: 'Online Course Pack',
+      schemaJson: JSON.stringify({
+        files: ['assets/text.json', 'assets/music.json', 'marketing/captions.json'],
+        format: 'educational',
+      }),
+    },
+    {
+      key: 'stock-pack',
+      name: 'Stock Content Pack',
+      schemaJson: JSON.stringify({
+        files: ['assets/prompts.json', 'assets/music.json', 'licensing/rights.json'],
+        format: 'commercial',
+      }),
+    },
+    {
+      key: 'pod-pack',
+      name: 'Podcast Pack',
+      schemaJson: JSON.stringify({
+        files: ['assets/text.json', 'assets/music.json', 'marketing/captions.json'],
+        format: 'audio',
+      }),
+    },
+  ];
+
+  for (const t of productTemplates) {
+    await prisma.productTemplate.upsert({
+      where: { id: `seed-template-${t.key}` },
+      update: {},
+      create: {
+        id: `seed-template-${t.key}`,
+        key: t.key,
+        name: t.name,
+        schemaJson: t.schemaJson,
+        isActive: true,
+      },
+    });
+  }
+
   // Write seed evidence
   const outDir = path.join(process.cwd(), 'artifacts', 'seed');
   fs.mkdirSync(outDir, { recursive: true });
