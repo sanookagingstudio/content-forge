@@ -126,8 +126,10 @@ try {
     # Set DATABASE_URL for the dev process (relative to apps/api)
     $env:DATABASE_URL = "file:./apps/api/prisma/dev.db"
     $devProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c set DATABASE_URL=file:./apps/api/prisma/dev.db && npm run dev" -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput $devOutPath -RedirectStandardError $devErrPath
-    Start-Sleep -Seconds 8
+    Write-Host "[dev] Waiting for servers to start..."
+    Start-Sleep -Seconds 15
 
+    Write-Host "[dev] Probing services..."
     $web = Probe "http://localhost:3000" 180
     $api = Probe "http://localhost:4000/health" 180
 
@@ -135,10 +137,17 @@ try {
 
     if(-not $probeGreen){
       $blockers += "dev probes failed: web=$($web.ok)($($web.status)) api=$($api.ok)($($api.status))"
+      if(Test-Path $devErrPath){
+        $devErrTail = Get-Content $devErrPath -Tail 20 -ErrorAction SilentlyContinue
+        Write-Host "[ERROR] Dev server stderr tail:"
+        Write-Host ($devErrTail -join "`n")
+      }
     }
   } catch {
     $probeGreen = $false
     $blockers += "dev boot exception: $_"
+  } finally {
+    # Don't stop dev process here - stop it after all steps complete
   }
 
   # ---- Step 4: Create Test Brand
@@ -342,7 +351,14 @@ $(if($blockers.Count -gt 0){($blockers | ForEach-Object { "- $_" }) -join "`r`n"
   Write-Host ""
 
 } finally {
-  try { if($devProc -and -not $devProc.HasExited){ Stop-Process -Id $devProc.Id -Force -ErrorAction SilentlyContinue } } catch {}
+  # Stop dev process after all steps complete
+  try { 
+    if($devProc -and -not $devProc.HasExited){ 
+      Write-Host "[cleanup] Stopping dev servers..."
+      Stop-Process -Id $devProc.Id -Force -ErrorAction SilentlyContinue 
+      Start-Sleep -Seconds 2
+    } 
+  } catch {}
   Stop-Transcript | Out-Null
 }
 
