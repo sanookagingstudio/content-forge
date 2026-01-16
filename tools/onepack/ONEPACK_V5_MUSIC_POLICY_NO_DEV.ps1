@@ -230,7 +230,7 @@ const prisma = new PrismaClient();
     });
     const artifactsDir = path.join(process.cwd(), 'artifacts', 'jobs');
     fs.mkdirSync(artifactsDir, { recursive: true });
-    const artifactPath = path.join(artifactsDir, `$job.id.json`);
+    const artifactPath = path.join(artifactsDir, `${job.id}.json`);
     fs.writeFileSync(artifactPath, JSON.stringify({
       jobId: job.id,
       providerTraces: { text: { providerId: textProvider.id }, music: { providerId: musicProvider.id } },
