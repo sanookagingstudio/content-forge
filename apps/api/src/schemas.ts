@@ -36,10 +36,16 @@ export const PlanListQuerySchema = z.object({
 });
 
 export const JobGenerateSchema = z.object({
-  planId: z.string().min(1),
+  planId: z.string().optional(),
+  brandId: z.string().min(1).optional(),
+  personaId: z.string().optional(),
+  topic: z.string().min(1),
+  objective: z.string().min(1),
+  platforms: z.array(z.enum(['facebook', 'instagram', 'tiktok', 'youtube'])).default(['facebook']),
   options: z.object({
-    personaId: z.string().optional(),
     language: z.enum(['th','en']).default('th'),
     deterministicSeed: z.string().optional(),
+    tone: z.string().optional(),
+    length: z.enum(['short', 'medium', 'long']).optional(),
   }).default({ language: 'th' }),
 });

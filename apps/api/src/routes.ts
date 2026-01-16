@@ -9,6 +9,8 @@ import {
   JobGenerateSchema
 } from './schemas';
 import { generateDeterministic } from './generator';
+import { generateContentV3 } from './generator-v3';
+import { analyzeInputs } from './jarvis';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -132,65 +134,111 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/v1/jobs/generate', async (req, reply) => {
     try {
       const body = JobGenerateSchema.parse(req.body ?? {});
-      const plan = await prisma.contentPlan.findUnique({
-        where: { id: body.planId },
-        include: { brand: true, series: true }
-      });
-      if (!plan) {
-        reply.code(404);
-        return apiError('NOT_FOUND', 'Plan not found');
+      
+      // Support both planId-based and direct brandId-based generation
+      let brand;
+      let plan = null;
+      let persona = null;
+
+      if (body.planId) {
+        plan = await prisma.contentPlan.findUnique({
+          where: { id: body.planId },
+          include: { brand: true, series: true }
+        });
+        if (!plan) {
+          reply.code(404);
+          return apiError('NOT_FOUND', 'Plan not found');
+        }
+        brand = plan.brand;
+      } else if (body.brandId) {
+        brand = await prisma.brand.findUnique({ where: { id: body.brandId } });
+        if (!brand) {
+          reply.code(404);
+          return apiError('NOT_FOUND', 'Brand not found');
+        }
+      } else {
+        reply.code(400);
+        return apiError('BAD_REQUEST', 'Either planId or brandId must be provided');
       }
 
+      if (body.personaId) {
+        persona = await prisma.persona.findUnique({ where: { id: body.personaId } });
+      }
+
+      // Run Jarvis advisory
+      const advisory = analyzeInputs({
+        brandName: brand.name,
+        voiceTone: brand.voiceTone,
+        topic: body.topic,
+        objective: body.objective,
+        personaName: persona?.name,
+        platforms: body.platforms,
+      });
+
+      // Create job
       const job = await prisma.contentJob.create({
         data: {
-          planId: plan.id,
+          planId: plan?.id || 'direct',
           status: 'queued',
           inputsJson: JSON.stringify(body),
           outputsJson: JSON.stringify({}),
+          advisoryJson: JSON.stringify(advisory),
           costJson: JSON.stringify({ tokens: 0, currency: 'N/A' }),
           logsJson: JSON.stringify([{ at: new Date().toISOString(), msg: 'Queued' }]),
         }
       });
 
-      // Deterministic execution (synchronous)
+      // Generate content (V3 - structured output)
       const seed = body.options?.deterministicSeed ?? job.id;
-      const outputs = generateDeterministic({
-        brandName: plan.brand.name,
-        voiceTone: plan.brand.voiceTone,
-        prohibitedTopics: plan.brand.prohibitedTopics,
-        targetAudience: plan.brand.targetAudience,
-        channel: plan.channel,
-        objective: plan.objective,
-        cta: plan.cta,
-        scheduledAtISO: plan.scheduledAt.toISOString(),
+      const generatedContent = generateContentV3({
+        brandName: brand.name,
+        voiceTone: brand.voiceTone,
+        prohibitedTopics: brand.prohibitedTopics,
+        targetAudience: brand.targetAudience,
+        topic: body.topic,
+        objective: body.objective,
+        cta: plan?.cta || '',
+        platforms: body.platforms,
         language: body.options?.language ?? 'th',
         seed,
+        personaName: persona?.name,
       });
 
+      // Save artifact
       const artifactsDir = path.join(process.cwd(), 'artifacts', 'jobs');
       fs.mkdirSync(artifactsDir, { recursive: true });
       const artifactPath = path.join(artifactsDir, `${job.id}.json`);
       fs.writeFileSync(artifactPath, JSON.stringify({
         jobId: job.id,
-        planId: plan.id,
+        planId: plan?.id || null,
         createdAt: new Date().toISOString(),
-        outputs,
+        advisory,
+        outputs: generatedContent,
       }, null, 2), 'utf8');
 
+      // Update job with outputs
       const updated = await prisma.contentJob.update({
         where: { id: job.id },
         data: {
           status: 'succeeded',
-          outputsJson: JSON.stringify(outputs),
+          outputsJson: JSON.stringify(generatedContent),
           logsJson: JSON.stringify([
             { at: new Date().toISOString(), msg: 'Queued' },
-            { at: new Date().toISOString(), msg: 'Generated deterministically', artifactPath },
+            { at: new Date().toISOString(), msg: 'Generated content (V3)', artifactPath },
           ]),
         }
       });
 
       reply.code(201);
-      return { ok: true, data: { ...updated, outputs, artifactPath } };
+      return { 
+        ok: true, 
+        data: { 
+          ...updated, 
+          advisory,
+          outputs: generatedContent, 
+          artifactPath 
+        } 
+      };
     } catch (e) {
       reply.code(400);
       return fromZod(e);
@@ -199,7 +247,10 @@ export async function registerRoutes(app: FastifyInstance) {
 
   app.get('/v1/jobs/:id', async (req, reply) => {
     const id = (req.params as any)?.id as string;
-    const job = await prisma.contentJob.findUnique({ where: { id }, include: { plan: { include: { brand: true, series: true } }, assets: true } });
+    const job = await prisma.contentJob.findUnique({ 
+      where: { id }, 
+      include: { plan: { include: { brand: true, series: true } }, assets: true } 
+    });
     if (!job) {
       reply.code(404);
       return apiError('NOT_FOUND', 'Job not found');
@@ -210,6 +261,7 @@ export async function registerRoutes(app: FastifyInstance) {
         ...job,
         inputs: safeJson(job.inputsJson, {}),
         outputs: safeJson(job.outputsJson, {}),
+        advisory: safeJson(job.advisoryJson, { warnings: [], suggestions: [] }),
         cost: safeJson(job.costJson, {}),
         logs: safeJson(job.logsJson, []),
       }

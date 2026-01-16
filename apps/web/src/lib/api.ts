@@ -80,6 +80,14 @@ export const api = {
   },
   createPlan: (p: any) => http<Plan>(`/v1/plans`, { method: 'POST', body: JSON.stringify(p) }),
 
-  generateJob: (planId: string, options?: any) => http<any>(`/v1/jobs/generate`, { method: 'POST', body: JSON.stringify({ planId, options }) }),
+  generateJob: (req: {
+    brandId?: string;
+    planId?: string;
+    personaId?: string;
+    topic: string;
+    objective: string;
+    platforms?: ('facebook' | 'instagram' | 'tiktok' | 'youtube')[];
+    options?: { language?: 'th' | 'en'; tone?: string; length?: 'short' | 'medium' | 'long' };
+  }) => http<any>(`/v1/jobs/generate`, { method: 'POST', body: JSON.stringify(req) }),
   getJob: (id: string) => http<any>(`/v1/jobs/${id}`),
 };

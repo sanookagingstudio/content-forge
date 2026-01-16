@@ -79,6 +79,7 @@ model ContentJob {
   status      JobStatus
   inputsJson  String
   outputsJson String
+  advisoryJson String   @default("{}") // Jarvis advisory warnings/suggestions
   costJson    String
   logsJson    String
   createdAt   DateTime  @default(now())
