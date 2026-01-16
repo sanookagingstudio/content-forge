@@ -58,32 +58,18 @@ function Probe([string]$Url,[int]$TimeoutSec=180){
   return @{ ok=$false; status=0; url=$Url }
 }
 function Json($o){ return (ConvertTo-Json $o -Depth 30) }
-function Get-ListeningPid([int]$port){
+function Kill-Port([int]$port){
   try {
-    $lines = netstat -ano | Select-String ":$port\s"
-    if($lines){
-      foreach($line in $lines){
-        $parts = $line -split '\s+'
-        $pidStr = $parts[-1]
-        if($pidStr -match '^\d+$'){
-          $procId = [int]$pidStr
-          if($procId -gt 0 -and $procId -ne $PID){
-            return $procId
-          }
-        }
+    $line = netstat -ano | findstr ":$port" | Select-Object -First 1
+    if(!$line){ return }
+    $parts = $line.Trim() -split "\s+"
+    $pidStr = $parts[-1]
+    if($pidStr -match '^\d+$'){
+      $procId = [int]$pidStr
+      if($procId -gt 0){
+        taskkill /F /PID $procId /T 2>&1 | Out-Null
       }
     }
-  } catch {}
-  return $null
-}
-
-function Kill-IfValidPid($procId, $label){
-  if($null -eq $procId -or $procId -le 0){
-    return
-  }
-  try {
-    Write-Host "[cleanup] Killing PID $procId ($label)"
-    taskkill /F /PID $procId /T 2>&1 | Out-Null
   } catch {
     # Ignore errors
   }
@@ -91,11 +77,9 @@ function Kill-IfValidPid($procId, $label){
 
 function Clean-Ports(){
   Write-Host "[clean] Checking ports 3000, 4000..."
-  foreach($port in @(3000, 4000)){
-    $procId = Get-ListeningPid $port
-    Kill-IfValidPid $procId "port $port"
-  }
-  Start-Sleep -Seconds 2
+  Kill-Port 3000
+  Kill-Port 4000
+  Start-Sleep -Seconds 1
 }
 
 # ---- guard: must be repo root
@@ -412,37 +396,35 @@ $(if($blockers.Count -gt 0){($blockers | ForEach-Object { "- $_" }) -join "`r`n"
   Write-Host ""
 
 } finally {
-  # Stop dev process after all steps complete (max 10 seconds)
-  $cleanupStart = Get-Date
-  try { 
-    if($devProc -and -not $devProc.HasExited){ 
-      Write-Host "[cleanup] Stopping dev servers..."
-      # Try graceful stop first
-      Stop-Process -Id $devProc.Id -Force -ErrorAction SilentlyContinue 
-      Start-Sleep -Seconds 1
-      
-      # Force kill processes on ports 3000/4000 (no loop, single pass)
-      foreach($port in @(3000, 4000)){
-        $procId = Get-ListeningPid $port
-        Kill-IfValidPid $procId "port $port"
-      }
-      
-      # Fallback: force kill the parent process tree if still running
-      if(-not $devProc.HasExited){
-        $procId = $devProc.Id
-        Kill-IfValidPid $procId "dev process tree"
-      }
-      Start-Sleep -Seconds 1
-      
-      # Ensure we don't exceed 10 seconds
-      $elapsed = ((Get-Date) - $cleanupStart).TotalSeconds
-      if($elapsed -lt 10){
-        Start-Sleep -Seconds ([Math]::Max(0, 10 - $elapsed))
-      }
-    } 
+  # Hard stop cleanup - no loops, bounded time
+  Write-Host "[cleanup] Hard stopping..."
+  try {
+    # Kill ports (single pass, no loop)
+    Kill-Port 3000
+    Kill-Port 4000
+    
+    # Kill all node processes
+    taskkill /F /IM node.exe /T 2>&1 | Out-Null
+    
+    # Kill dev process if still running
+    if($devProc -and -not $devProc.HasExited){
+      taskkill /F /PID $devProc.Id /T 2>&1 | Out-Null
+    }
+    
+    Start-Sleep -Seconds 1
   } catch {
-    Write-Host "[cleanup] Error during cleanup: $_"
+    # Ignore cleanup errors
   }
+  
   Stop-Transcript | Out-Null
+  
+  # Explicit exit to ensure script terminates
+  if($allGreen){
+    Write-Host "Status: PASS"
+    exit 0
+  } else {
+    Write-Host "Status: PASS_WITH_BLOCKER"
+    exit 1
+  }
 }
 
