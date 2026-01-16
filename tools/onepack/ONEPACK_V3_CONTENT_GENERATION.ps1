@@ -46,22 +46,42 @@ function Probe([string]$Url,[int]$TimeoutSec=180){
   return @{ ok=$false; status=0; url=$Url }
 }
 function Json($o){ return (ConvertTo-Json $o -Depth 30) }
-function Clean-Ports(){
-  Write-Host "[clean] Checking ports 3000, 4000..."
-  $ports = @(3000, 4000)
-  foreach($port in $ports){
-    try {
-      $netstat = netstat -ano | Select-String ":$port\s"
-      if($netstat){
-        $pids = $netstat | ForEach-Object { ($_ -split '\s+')[-1] } | Select-Object -Unique
-        foreach($procId in $pids){
-          if($procId -and $procId -ne $PID){
-            Write-Host "[clean] Killing PID $procId on port $port"
-            taskkill /F /PID $procId 2>&1 | Out-Null
+function Get-ListeningPid([int]$port){
+  try {
+    $lines = netstat -ano | Select-String ":$port\s"
+    if($lines){
+      foreach($line in $lines){
+        $parts = $line -split '\s+'
+        $pidStr = $parts[-1]
+        if($pidStr -match '^\d+$'){
+          $procId = [int]$pidStr
+          if($procId -gt 0 -and $procId -ne $PID){
+            return $procId
           }
         }
       }
-    } catch {}
+    }
+  } catch {}
+  return $null
+}
+
+function Kill-IfValidPid($procId, $label){
+  if($null -eq $procId -or $procId -le 0){
+    return
+  }
+  try {
+    Write-Host "[cleanup] Killing PID $procId ($label)"
+    taskkill /F /PID $procId /T 2>&1 | Out-Null
+  } catch {
+    # Ignore errors
+  }
+}
+
+function Clean-Ports(){
+  Write-Host "[clean] Checking ports 3000, 4000..."
+  foreach($port in @(3000, 4000)){
+    $procId = Get-ListeningPid $port
+    Kill-IfValidPid $procId "port $port"
   }
   Start-Sleep -Seconds 2
 }
@@ -351,36 +371,33 @@ $(if($blockers.Count -gt 0){($blockers | ForEach-Object { "- $_" }) -join "`r`n"
   Write-Host ""
 
 } finally {
-  # Stop dev process after all steps complete
+  # Stop dev process after all steps complete (max 10 seconds)
+  $cleanupStart = Get-Date
   try { 
     if($devProc -and -not $devProc.HasExited){ 
       Write-Host "[cleanup] Stopping dev servers..."
       # Try graceful stop first
       Stop-Process -Id $devProc.Id -Force -ErrorAction SilentlyContinue 
-      Start-Sleep -Seconds 2
+      Start-Sleep -Seconds 1
       
-      # Force kill child processes on ports 3000/4000
-      $ports = @(3000, 4000)
-      foreach($port in $ports){
-        $listeners = netstat -ano | Select-String ":$port\s"
-        if($listeners){
-          foreach($line in $listeners){
-            $parts = $line -split '\s+'
-            $procId = $parts[-1]
-            if($procId -match '^\d+$' -and $procId -ne $PID){
-              Write-Host "[cleanup] Killing PID $procId on port $port"
-              taskkill /F /PID $procId /T 2>&1 | Out-Null
-            }
-          }
-        }
+      # Force kill processes on ports 3000/4000 (no loop, single pass)
+      foreach($port in @(3000, 4000)){
+        $procId = Get-ListeningPid $port
+        Kill-IfValidPid $procId "port $port"
       }
       
-      # Fallback: force kill the parent process tree
+      # Fallback: force kill the parent process tree if still running
       if(-not $devProc.HasExited){
-        Write-Host "[cleanup] Force killing process tree for PID $($devProc.Id)"
-        taskkill /F /PID $devProc.Id /T 2>&1 | Out-Null
+        $procId = $devProc.Id
+        Kill-IfValidPid $procId "dev process tree"
       }
       Start-Sleep -Seconds 1
+      
+      # Ensure we don't exceed 10 seconds
+      $elapsed = ((Get-Date) - $cleanupStart).TotalSeconds
+      if($elapsed -lt 10){
+        Start-Sleep -Seconds ([Math]::Max(0, 10 - $elapsed))
+      }
     } 
   } catch {
     Write-Host "[cleanup] Error during cleanup: $_"
