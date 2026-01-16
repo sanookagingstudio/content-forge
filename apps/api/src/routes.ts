@@ -162,6 +162,18 @@ export async function registerRoutes(app: FastifyInstance) {
           reply.code(404);
           return apiError('NOT_FOUND', 'Brand not found');
         }
+        // Create a temporary plan for direct brand-based generation
+        plan = await prisma.contentPlan.create({
+          data: {
+            brandId: brand.id,
+            scheduledAt: new Date(),
+            channel: body.platforms[0] || 'facebook',
+            objective: body.objective,
+            cta: '',
+            assetRequirements: '',
+          },
+          include: { brand: true, series: true }
+        });
       } else {
         reply.code(400);
         return apiError('VALIDATION_ERROR', 'Either planId or brandId must be provided');
@@ -184,7 +196,7 @@ export async function registerRoutes(app: FastifyInstance) {
       // Create job
       const job = await prisma.contentJob.create({
         data: {
-          planId: plan?.id || 'direct',
+          planId: plan.id,
           status: 'queued',
           inputsJson: JSON.stringify(body),
           outputsJson: JSON.stringify({}),

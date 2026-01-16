@@ -123,8 +123,9 @@ try {
   Write-Host "=== Step 2: Prisma Generate + Migrate ==="
   try {
     Exec "npm --prefix apps/api run db:generate" | Out-Null
-    $migrateCmd = "cd apps/api && set DATABASE_URL=file:./prisma/dev.db && npm run db:migrate"
-    Exec $migrateCmd | Out-Null
+    # Use db push for development (applies schema without migration history)
+    $env:DATABASE_URL = "file:./apps/api/prisma/dev.db"
+    Exec "cd apps/api && npx prisma db push --skip-generate --accept-data-loss" | Out-Null
     $prismaOk = $true
   } catch {
     $prismaOk = $false
@@ -139,18 +140,18 @@ try {
   $devErrPath = Join-Path $runDir "dev.err.log"
 
   try {
-    # DATABASE_URL must be relative to apps/api directory where Prisma schema is
-    # When API runs from root via npm run dev, it needs the path relative to apps/api
-    $dbPath = (Resolve-Path "apps\api\prisma\dev.db").Path.Replace('\', '/')
+    # DATABASE_URL must be absolute path for dev servers
+    $dbPath = Join-Path (Get-Location).Path "apps\api\prisma\dev.db"
+    $dbPath = $dbPath.Replace('\', '/')
     $dbUrl = "file:$dbPath"
     Write-Host "[dev] Starting dev servers with DATABASE_URL=$dbUrl"
     $devProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c set DATABASE_URL=$dbUrl && npm run dev" -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput $devOutPath -RedirectStandardError $devErrPath
     Write-Host "[dev] Waiting for servers to start..."
-    Start-Sleep -Seconds 15
+    Start-Sleep -Seconds 20
 
     Write-Host "[dev] Probing services..."
-    $web = Probe "http://localhost:3000" 180
-    $api = Probe "http://localhost:4000/health" 180
+    $web = Probe "http://localhost:3000" 60
+    $api = Probe "http://localhost:4000/health" 60
 
     # Both must return 200 for GREEN
     $probeGreen = ($web.ok -and $api.ok -and $web.status -eq 200 -and $api.status -eq 200)
