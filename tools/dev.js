@@ -1,5 +1,13 @@
 const { spawn } = require('child_process');
 
+// Node version check (non-fatal warning)
+const nodeMajor = parseInt(process.version.slice(1).split('.')[0]);
+const supportedMajors = [20, 22, 24];
+if (!supportedMajors.includes(nodeMajor)) {
+  console.warn(`[dev] WARNING: Node.js v${nodeMajor} detected. Recommended: Node.js LTS (20.x or 22.x).`);
+  console.warn('[dev] Current version may work but is not officially supported.');
+}
+
 function run(cmd, args){
   // shell:true => let OS resolve npm properly (fixes spawn EINVAL on some Windows setups)
   const p = spawn(cmd, args, { stdio: 'inherit', shell: true, windowsHide: false });

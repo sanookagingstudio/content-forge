@@ -9,7 +9,12 @@
     "db:migrate": "prisma migrate dev --name init --skip-generate",
     "db:generate": "prisma generate",
     "db:seed": "tsx src/seed.ts",
-    "lint:noop": "node -e \"console.log('noop')\""
+    "pretest": "npm run db:generate",
+    "prebuild": "npm run db:generate",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc"
   },
   "dependencies": {
     "@content-forge/core": "0.3.4",
@@ -22,6 +27,7 @@
     "typescript": "^5.7.3",
     "prisma": "^6.3.1",
     "tsx": "^4.19.2",
-    "@types/node": "^22.10.2"
+    "@types/node": "^22.10.2",
+    "vitest": "^2.1.0"
   }
 }

@@ -4,10 +4,12 @@
   "version": "0.3.4",
   "main": "index.js",
   "scripts": {
-    "build": "node -e \"console.log('noop build for v1')\"",
-    "test": "node -c index.js",
+    "build": "tsc",
+    "test": "node -c src/index.ts && echo 'CLI syntax check passed'",
     "dev": "tsx src/index.ts",
-    "start": "node src/index.ts"
+    "start": "node src/index.ts",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "commander": "^12.1.0",

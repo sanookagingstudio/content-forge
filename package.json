@@ -1,6 +1,10 @@
 {
   "name": "content-forge-root",
   "private": true,
+  "version": "0.3.6",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -12,6 +16,18 @@
     "dev:api": "npm --prefix apps/api run dev",
     "dev:web": "npm --prefix apps/web run dev",
     "db:migrate": "npm --prefix apps/api run db:migrate",
-    "db:seed": "npm --prefix apps/api run db:seed"
+    "db:seed": "npm --prefix apps/api run db:seed",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "release:bundle": "node tools/release/bundle.mjs"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.7.3",
+    "archiver": "^7.0.1"
   }
 }
