@@ -37,11 +37,23 @@ function Write-Utf8([string]$path,[string]$content){
 }
 function Probe([string]$Url,[int]$TimeoutSec=180){
   $start = Get-Date
-  while(((Get-Date)-$start).TotalSeconds -lt $TimeoutSec){
-    try{
-      $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5
-      return @{ ok=$true; status=[int]$r.StatusCode; url=$Url }
-    } catch { Start-Sleep -Seconds 2 }
+  $handler = New-Object System.Net.Http.HttpClientHandler
+  $client = New-Object System.Net.Http.HttpClient($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds(5)
+  
+  try {
+    while(((Get-Date)-$start).TotalSeconds -lt $TimeoutSec){
+      try{
+        $resp = $client.GetAsync($Url).Result
+        $code = [int]$resp.StatusCode
+        $client.Dispose()
+        return @{ ok=$true; status=$code; url=$Url }
+      } catch { 
+        Start-Sleep -Seconds 1 
+      }
+    }
+  } finally {
+    if($client){ $client.Dispose() }
   }
   return @{ ok=$false; status=0; url=$Url }
 }
@@ -143,9 +155,12 @@ try {
   $devErrPath = Join-Path $runDir "dev.err.log"
 
   try {
-    # Set DATABASE_URL for the dev process (relative to apps/api)
-    $env:DATABASE_URL = "file:./apps/api/prisma/dev.db"
-    $devProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c set DATABASE_URL=file:./apps/api/prisma/dev.db && npm run dev" -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput $devOutPath -RedirectStandardError $devErrPath
+    # DATABASE_URL must be relative to apps/api directory where Prisma schema is
+    # When API runs from root via npm run dev, it needs the path relative to apps/api
+    $dbPath = (Resolve-Path "apps\api\prisma\dev.db").Path.Replace('\', '/')
+    $dbUrl = "file:$dbPath"
+    Write-Host "[dev] Starting dev servers with DATABASE_URL=$dbUrl"
+    $devProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c set DATABASE_URL=$dbUrl && npm run dev" -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput $devOutPath -RedirectStandardError $devErrPath
     Write-Host "[dev] Waiting for servers to start..."
     Start-Sleep -Seconds 15
 
@@ -153,6 +168,7 @@ try {
     $web = Probe "http://localhost:3000" 180
     $api = Probe "http://localhost:4000/health" 180
 
+    # Both must return 200 for GREEN
     $probeGreen = ($web.ok -and $api.ok -and $web.status -eq 200 -and $api.status -eq 200)
 
     if(-not $probeGreen){
@@ -173,21 +189,37 @@ try {
   # ---- Step 4: Create Test Brand
   Write-Host "=== Step 4: Create Test Brand ==="
   $brandId = $null
-  try {
-    $brandReq = @{
-      name = "Test Brand V3"
-      voiceTone = "เป็นกันเอง, สนุกสนาน"
-      prohibitedTopics = "การเมือง, เนื้อหาที่ไม่เหมาะสม"
-      targetAudience = "ผู้สูงอายุ 50-70 ปี"
-      channels = @("facebook", "instagram")
-    } | ConvertTo-Json
-    $brandRes = Invoke-RestMethod -Uri "http://localhost:4000/v1/brands" -Method POST -Body $brandReq -ContentType "application/json"
-    if($brandRes.ok){
-      $brandId = $brandRes.data.id
-      Write-Host "Created brand: $brandId"
+  if($probeGreen){
+    try {
+      $brandReq = @{
+        name = "Test Brand V3"
+        voiceTone = "เป็นกันเอง, สนุกสนาน"
+        prohibitedTopics = "การเมือง, เนื้อหาที่ไม่เหมาะสม"
+        targetAudience = "ผู้สูงอายุ 50-70 ปี"
+        channels = @("facebook", "instagram")
+      } | ConvertTo-Json
+      $handler = New-Object System.Net.Http.HttpClientHandler
+      $client = New-Object System.Net.Http.HttpClient($handler)
+      $client.Timeout = [TimeSpan]::FromSeconds(10)
+      try {
+        $content = New-Object System.Net.Http.StringContent($brandReq, [System.Text.Encoding]::UTF8, "application/json")
+        $resp = $client.PostAsync("http://localhost:4000/v1/brands", $content).Result
+        $respBody = $resp.Content.ReadAsStringAsync().Result
+        $brandRes = $respBody | ConvertFrom-Json
+        if($brandRes.ok){
+          $brandId = $brandRes.data.id
+          Write-Host "Created brand: $brandId"
+        } else {
+          $blockers += "Failed to create test brand: $($brandRes.error.message)"
+        }
+      } finally {
+        $client.Dispose()
+      }
+    } catch {
+      $blockers += "Failed to create test brand: $_"
     }
-  } catch {
-    $blockers += "Failed to create test brand: $_"
+  } else {
+    $blockers += "Skipped brand creation (probes failed)"
   }
 
   # ---- Step 5: Generate Content
@@ -204,21 +236,28 @@ try {
           language = "th"
         }
       } | ConvertTo-Json -Depth 10
-      $generateRes = Invoke-RestMethod -Uri "http://localhost:4000/v1/jobs/generate" -Method POST -Body $generateReq -ContentType "application/json"
-      if($generateRes.ok){
-        $jobResult = $generateRes.data
-        Write-Host "Generated job: $($jobResult.id)"
-        Write-Host "Advisory warnings: $($jobResult.advisory.warnings.Count)"
-        Write-Host "Advisory suggestions: $($jobResult.advisory.suggestions.Count)"
-        Write-Host "Platforms generated: $($jobResult.outputs.platforms.PSObject.Properties.Name -join ', ')"
+      $handler = New-Object System.Net.Http.HttpClientHandler
+      $client = New-Object System.Net.Http.HttpClient($handler)
+      $client.Timeout = [TimeSpan]::FromSeconds(30)
+      try {
+        $content = New-Object System.Net.Http.StringContent($generateReq, [System.Text.Encoding]::UTF8, "application/json")
+        $resp = $client.PostAsync("http://localhost:4000/v1/jobs/generate", $content).Result
+        $respBody = $resp.Content.ReadAsStringAsync().Result
+        $generateRes = $respBody | ConvertFrom-Json
+        if($generateRes.ok){
+          $jobResult = $generateRes.data
+          Write-Host "Generated job: $($jobResult.id)"
+          Write-Host "Advisory warnings: $($jobResult.advisory.warnings.Count)"
+          Write-Host "Advisory suggestions: $($jobResult.advisory.suggestions.Count)"
+          Write-Host "Platforms generated: $($jobResult.outputs.platforms.PSObject.Properties.Name -join ', ')"
+        } else {
+          $blockers += "Content generation failed: $($generateRes.error.message)"
+        }
+      } finally {
+        $client.Dispose()
       }
     } catch {
       $blockers += "Content generation failed: $_"
-      if($_.Exception.Response){
-        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-        $responseBody = $reader.ReadToEnd()
-        Write-Host "Error response: $responseBody"
-      }
     }
   } else {
     $blockers += "Skipped content generation (brand creation or probes failed)"
