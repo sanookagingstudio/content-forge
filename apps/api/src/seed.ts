@@ -1,6 +1,8 @@
 import { prisma } from './db';
 import fs from 'node:fs';
 import path from 'node:path';
+import { analyzeInputs } from './generator/jarvis';
+import { generateContent } from './generator/generate';
 
 function nowISO() { return new Date().toISOString(); }
 
@@ -103,7 +105,108 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'seed-meta.json'), JSON.stringify(seedMeta, null, 2), 'utf8');
 
-  console.log(JSON.stringify({ ok: true, seedMeta, brandId: brand.id }, null, 2));
+  // Create sample ContentJob with generated content
+  const firstPlan = await prisma.contentPlan.findFirst({
+    where: { brandId: brand.id },
+    orderBy: { scheduledAt: 'asc' },
+  });
+
+  if (firstPlan) {
+    const persona = await prisma.persona.findFirst({
+      where: { brandId: brand.id },
+    });
+
+    const topic = 'การดูแลสุขภาพผู้สูงอายุ';
+    const objective = 'ให้ความรู้และสร้างแรงบันดาลใจในการดูแลสุขภาพ';
+    const platforms: ('facebook' | 'instagram' | 'tiktok' | 'youtube')[] = ['facebook', 'instagram', 'tiktok', 'youtube'];
+
+    // Run Jarvis advisory
+    const advisory = analyzeInputs({
+      brandName: brand.name,
+      voiceTone: brand.voiceTone,
+      topic,
+      objective,
+      personaName: persona?.name,
+      platforms,
+    });
+
+    // Generate content
+    const generatedOutput = generateContent({
+      brandName: brand.name,
+      voiceTone: brand.voiceTone,
+      prohibitedTopics: brand.prohibitedTopics,
+      targetAudience: brand.targetAudience,
+      topic,
+      objective,
+      cta: firstPlan.cta,
+      platforms,
+      language: 'th',
+      seed: `seed-${firstPlan.id}`,
+      personaName: persona?.name,
+    });
+
+    // Create ContentJob
+    const job = await prisma.contentJob.create({
+      data: {
+        planId: firstPlan.id,
+        status: 'succeeded',
+        inputsJson: JSON.stringify({
+          planId: firstPlan.id,
+          brandId: brand.id,
+          personaId: persona?.id,
+          topic,
+          objective,
+          platforms,
+          options: {
+            language: 'th',
+            deterministicSeed: `seed-${firstPlan.id}`,
+          },
+        }),
+        outputsJson: JSON.stringify(generatedOutput),
+        advisoryJson: JSON.stringify(advisory),
+        costJson: JSON.stringify({ tokens: 0, currency: 'N/A' }),
+        logsJson: JSON.stringify([
+          { at: nowISO(), msg: 'Queued' },
+          { at: nowISO(), msg: 'Generated deterministically' },
+          { at: nowISO(), msg: 'Completed' },
+        ]),
+      },
+    });
+
+    // Write artifact file
+    const artifactsDir = path.join(process.cwd(), 'artifacts', 'jobs');
+    fs.mkdirSync(artifactsDir, { recursive: true });
+    const artifactPath = path.join(artifactsDir, `${job.id}.json`);
+    fs.writeFileSync(
+      artifactPath,
+      JSON.stringify(
+        {
+          jobId: job.id,
+          inputs: {
+            planId: firstPlan.id,
+            brandId: brand.id,
+            personaId: persona?.id,
+            topic,
+            objective,
+            platforms,
+            options: {
+              language: 'th',
+              deterministicSeed: `seed-${firstPlan.id}`,
+            },
+          },
+          advisory,
+          outputs: generatedOutput,
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    console.log(JSON.stringify({ ok: true, seedMeta, brandId: brand.id, jobId: job.id, artifactPath }, null, 2));
+  } else {
+    console.log(JSON.stringify({ ok: true, seedMeta, brandId: brand.id }, null, 2));
+  }
 }
 
 main()
