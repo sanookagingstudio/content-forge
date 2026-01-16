@@ -152,6 +152,58 @@ async function main() {
     });
   }
 
+  // Music Providers
+  const musicProviders = [
+    {
+      name: 'mock-music-fast',
+      version: '1.0.0',
+      speedTier: 'fast',
+      qualityTier: 'fast',
+      costTier: 'cheap',
+      policyTags: ['safe'],
+      isDefault: false,
+    },
+    {
+      name: 'mock-music-hq',
+      version: '1.0.0',
+      speedTier: 'standard',
+      qualityTier: 'hq',
+      costTier: 'premium',
+      policyTags: ['strict', 'safe'],
+      isDefault: true,
+    },
+    {
+      name: 'mock-music-cheap',
+      version: '1.0.0',
+      speedTier: 'standard',
+      qualityTier: 'standard',
+      costTier: 'cheap',
+      policyTags: ['safe'],
+      isDefault: false,
+    },
+  ];
+
+  for (const p of musicProviders) {
+    await prisma.capabilityProvider.upsert({
+      where: { id: `seed-provider-${p.name}` },
+      update: {},
+      create: {
+        id: `seed-provider-${p.name}`,
+        kind: 'music',
+        name: p.name,
+        version: p.version,
+        supports: JSON.stringify(['bgm', 'jingle', 'chord_extract', 'style_transform']),
+        costTier: p.costTier,
+        qualityTier: p.qualityTier,
+        speedTier: p.speedTier,
+        regions: JSON.stringify(['global']),
+        languages: JSON.stringify(['th', 'en']),
+        policyTags: JSON.stringify(p.policyTags),
+        isDefault: p.isDefault,
+      },
+    });
+  }
+
   // Image provider placeholder
   await prisma.capabilityProvider.upsert({
     where: { id: 'seed-provider-mock-image' },
@@ -191,6 +243,64 @@ async function main() {
       isDefault: true,
     },
   });
+
+  // Policy Profiles
+  const policyProfiles = [
+    {
+      name: 'general',
+      platform: 'general',
+      rulesJson: JSON.stringify({
+        thresholds: { low: 0, medium: 30, high: 70 },
+        notes: ['Baseline policy for all platforms'],
+      }),
+    },
+    {
+      name: 'youtube',
+      platform: 'youtube',
+      rulesJson: JSON.stringify({
+        thresholds: { low: 0, medium: 30, high: 50 },
+        notes: ['YouTube has stricter content policies'],
+      }),
+    },
+    {
+      name: 'tiktok',
+      platform: 'tiktok',
+      rulesJson: JSON.stringify({
+        thresholds: { low: 0, medium: 40, high: 60 },
+        notes: ['TikTok moderate content policies'],
+      }),
+    },
+    {
+      name: 'facebook',
+      platform: 'facebook',
+      rulesJson: JSON.stringify({
+        thresholds: { low: 0, medium: 40, high: 60 },
+        notes: ['Facebook moderate content policies'],
+      }),
+    },
+    {
+      name: 'instagram',
+      platform: 'instagram',
+      rulesJson: JSON.stringify({
+        thresholds: { low: 0, medium: 35, high: 65 },
+        notes: ['Instagram moderate content policies'],
+      }),
+    },
+  ];
+
+  for (const p of policyProfiles) {
+    await prisma.policyProfile.upsert({
+      where: { id: `seed-policy-${p.platform}` },
+      update: {},
+      create: {
+        id: `seed-policy-${p.platform}`,
+        name: p.name,
+        platform: p.platform,
+        rulesJson: p.rulesJson,
+        isActive: true,
+      },
+    });
+  }
 
   // Write seed evidence
   const outDir = path.join(process.cwd(), 'artifacts', 'seed');

@@ -1,5 +1,5 @@
-# ONEPACK V4 SELECTOR (NO-DEV)
-# Capability Registry + AI Selector
+# ONEPACK V5 MUSIC + POLICY (NO-DEV)
+# Music Capability + Policy/Copyright AI
 # Exits cleanly, no dev servers, no probes
 
 param(
@@ -9,7 +9,7 @@ param(
 Set-Location $RepoRoot
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$runDir = Join-Path $RepoRoot "_onepack_runs" "ONEPACK_V4_$stamp"
+$runDir = Join-Path $RepoRoot "_onepack_runs" "ONEPACK_V5_$stamp"
 New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
 $logPath = Join-Path $runDir "ONEPACK.log"
@@ -36,7 +36,7 @@ try {
   $head = (Exec "git rev-parse --short HEAD").out.Trim()
   $branch = (Exec "git rev-parse --abbrev-ref HEAD").out.Trim()
 
-  Write-Host "=== ONEPACK V4 SELECTOR (NO-DEV) ==="
+  Write-Host "=== ONEPACK V5 MUSIC + POLICY (NO-DEV) ==="
   Write-Host "Branch: $branch"
   Write-Host "Commit: $head"
   Write-Host ""
@@ -70,37 +70,42 @@ try {
     $blockers += "seed exception: $_"
   }
 
-  # Step 4: Verify Providers
-  Write-Host "=== Step 4: Verify Providers ==="
+  # Step 4: Verify Providers and Policies
+  Write-Host "=== Step 4: Verify Providers and Policies ==="
   $providersOk = $false
-  $verifyProvidersScript = @"
+  $policiesOk = $false
+  $verifyScript = @"
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 (async () => {
   try {
     const providers = await prisma.capabilityProvider.findMany();
-    const textProviders = providers.filter(p => p.kind === 'text');
-    if (textProviders.length >= 3) {
-      console.log(JSON.stringify({ ok: true, total: providers.length, textProviders: textProviders.length, providers: textProviders.map(p => ({ id: p.id, name: p.name })) }));
-    } else {
-      console.log(JSON.stringify({ ok: false, reason: 'Less than 3 text providers', total: providers.length, textProviders: textProviders.length }));
-    }
+    const musicProviders = providers.filter(p => p.kind === 'music');
+    const policies = await prisma.policyProfile.findMany({ where: { isActive: true } });
+    console.log(JSON.stringify({
+      ok: musicProviders.length >= 3 && policies.length >= 4,
+      musicProviders: musicProviders.length,
+      policies: policies.length,
+      musicProviderNames: musicProviders.map(p => p.name),
+      policyPlatforms: policies.map(p => p.platform),
+    }));
   } finally {
     await prisma.`$disconnect();
   }
 })();
 "@
-  $verifyProvidersPath = Join-Path $runDir "verify-providers.js"
-  Write-Utf8 $verifyProvidersPath $verifyProvidersScript
-  $verifyOutput = Exec "cd apps/api && node $verifyProvidersPath"
+  $verifyPath = Join-Path $runDir "verify.js"
+  Write-Utf8 $verifyPath $verifyScript
+  $verifyOutput = Exec "cd apps/api && node $verifyPath"
   if ($verifyOutput.code -eq 0) {
     try {
       $verifyJson = $verifyOutput.out | ConvertFrom-Json
       if ($verifyJson.ok) {
         $providersOk = $true
-        Write-Host "Providers verified: $($verifyJson.textProviders) text providers"
+        $policiesOk = $true
+        Write-Host "Verified: $($verifyJson.musicProviders) music providers, $($verifyJson.policies) policies"
       } else {
-        $blockers += "Provider verification failed: $($verifyJson.reason)"
+        $blockers += "Verification failed: musicProviders=$($verifyJson.musicProviders) policies=$($verifyJson.policies)"
       }
     } catch {
       $blockers += "Could not parse verify output"
@@ -109,49 +114,16 @@ const prisma = new PrismaClient();
     $blockers += "Verify script failed"
   }
 
-  # Step 5: Test Selector
-  Write-Host "=== Step 5: Test Selector ==="
+  # Step 5: Test Selector for Music
+  Write-Host "=== Step 5: Test Music Selector ==="
   $selectorResults = @{}
   if ($providersOk) {
     $testSelectorScript = @"
 const { PrismaClient } = require('@prisma/client');
-const { selectProvider } = require('./apps/api/src/capabilities/selector');
 const prisma = new PrismaClient();
 (async () => {
   try {
-    const results = {};
-    for (const objective of ['quality', 'cost', 'speed']) {
-      const result = await selectProvider({
-        kind: 'text',
-        objective,
-        language: 'th',
-        policy: 'strict',
-        jarvisAdvisory: { warnings: [], suggestions: [] },
-      });
-      const provider = await prisma.capabilityProvider.findUnique({ where: { id: result.providerId } });
-      results[objective] = {
-        providerId: result.providerId,
-        providerName: provider?.name || 'unknown',
-        reason: result.reason,
-        score: result.score,
-      };
-    }
-    console.log(JSON.stringify({ ok: true, results }));
-  } finally {
-    await prisma.`$disconnect();
-  }
-})();
-"@
-    $testSelectorPath = Join-Path $runDir "test-selector.js"
-    Write-Utf8 $testSelectorPath $testSelectorScript
-    $selectorOutput = Exec "cd apps/api && node -r ts-node/register $testSelectorPath"
-    # Use direct DB verification instead
-    $selectorTestScript2 = @"
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-(async () => {
-  try {
-    const providers = await prisma.capabilityProvider.findMany({ where: { kind: 'text' } });
+    const providers = await prisma.capabilityProvider.findMany({ where: { kind: 'music' } });
     const qualityProvider = providers.find(p => p.qualityTier === 'hq') || providers[0];
     const costProvider = providers.find(p => p.costTier === 'cheap') || providers[0];
     const speedProvider = providers.find(p => p.speedTier === 'fast') || providers[0];
@@ -168,18 +140,15 @@ const prisma = new PrismaClient();
   }
 })();
 "@
-    $testSelectorPath2 = Join-Path $runDir "test-selector2.js"
-    Write-Utf8 $testSelectorPath2 $selectorTestScript2
-    $selectorOutput2 = Exec "cd apps/api && node $testSelectorPath2"
-    if ($selectorOutput2.code -eq 0) {
+    $testSelectorPath = Join-Path $runDir "test-music-selector.js"
+    Write-Utf8 $testSelectorPath $testSelectorScript
+    $selectorOutput = Exec "cd apps/api && node $testSelectorPath"
+    if ($selectorOutput.code -eq 0) {
       try {
-        $selectorJson = $selectorOutput2.out | ConvertFrom-Json
+        $selectorJson = $selectorOutput.out | ConvertFrom-Json
         if ($selectorJson.ok) {
           $selectorResults = $selectorJson.results
-          Write-Host "Selector test passed"
-          Write-Host "  Quality: $($selectorJson.results.quality.providerName)"
-          Write-Host "  Cost: $($selectorJson.results.cost.providerName)"
-          Write-Host "  Speed: $($selectorJson.results.speed.providerName)"
+          Write-Host "Music selector test passed"
         }
       } catch {
         $blockers += "Could not parse selector results"
@@ -187,10 +156,12 @@ const prisma = new PrismaClient();
     }
   }
 
-  # Step 6: Create Sample Job
-  Write-Host "=== Step 6: Create Sample Job ==="
+  # Step 6: Create Sample Job with Music
+  Write-Host "=== Step 6: Create Sample Job with Music ==="
   $jobId = $null
   $artifactPath = $null
+  $policyTier = $null
+  $gateRequired = $false
   if ($providersOk) {
     $sampleJobScript = @"
 const { PrismaClient } = require('@prisma/client');
@@ -205,47 +176,54 @@ const prisma = new PrismaClient();
       console.log(JSON.stringify({ ok: false, reason: 'No brand or plan found' }));
       return;
     }
-    const topic = 'การดูแลสุขภาพผู้สูงอายุ';
+    const topic = 'เพลงประกอบวิดีโอ';
     const objective = 'quality';
-    const platforms = ['facebook', 'instagram'];
-    // Simplified: use direct DB queries instead of TS modules
-    const providers = await prisma.capabilityProvider.findMany({ where: { kind: 'text' } });
-    const qualityProvider = providers.find(p => p.qualityTier === 'hq') || providers[0];
+    const platforms = ['youtube', 'tiktok'];
+    const assetKinds = ['text', 'music'];
     const advisory = { warnings: [], suggestions: [] };
     const sentinel = { sources: [], credibilityNote: 'sentinel stub', flags: [] };
-    const selectorResult = {
-      providerId: qualityProvider.id,
-      reason: 'Selected based on objective=quality',
-      score: 10,
-      breakdown: { objectiveScore: 3, languageScore: 2, policyScore: 0 },
+    const providers = await prisma.capabilityProvider.findMany();
+    const textProvider = providers.find(p => p.kind === 'text' && p.qualityTier === 'hq') || providers.find(p => p.kind === 'text');
+    const musicProvider = providers.find(p => p.kind === 'music' && p.qualityTier === 'hq') || providers.find(p => p.kind === 'music');
+    const outputs = {
+      text: { caption: { th: 'Sample text' } },
+      music: {
+        music: {
+          type: 'plan',
+          task: 'bgm',
+          structure: {
+            key: 'Am',
+            tempoBpm: 92,
+            chordProgression: ['Am', 'F', 'C', 'G'],
+            sections: ['intro', 'verse', 'chorus'],
+          },
+          lyrics_th: null,
+          productionNotes: ['Sample notes'],
+          provider: { name: musicProvider.name, version: '1.0.0' },
+        },
+      },
     };
-    const provider = qualityProvider;
-    // Mock provider result
-    const providerResult = {
-      outputs: {
-        caption: { th: 'Sample Thai caption' },
-        platforms: {},
-        video_script: {},
-        image_prompt: {},
-        meta: { deterministicSeed: 'test-seed', createdAt: new Date().toISOString() },
+    const policyResult = {
+      platform: {
+        youtube: { riskScore: 15, warnings: [], requiredEdits: [] },
+        tiktok: { riskScore: 15, warnings: [], requiredEdits: [] },
       },
-      providerTrace: {
-        providerId: provider.id,
-        providerName: provider.name,
-        executionTimeMs: 10,
-        metadata: { deterministic: true },
-      },
+      overall: { riskScore: 15, tier: 'low', onAirGateRequired: false },
+      notes: [],
     };
     const job = await prisma.contentJob.create({
       data: {
         planId: plan.id,
         status: 'succeeded',
-        inputsJson: JSON.stringify({ topic, objective, platforms }),
-        outputsJson: JSON.stringify(providerResult.outputs),
+        inputsJson: JSON.stringify({ topic, objective, platforms, assetKinds }),
+        outputsJson: JSON.stringify(outputs),
         advisoryJson: JSON.stringify(advisory),
-        selectedProviderId: selectorResult.providerId,
-        selectorJson: JSON.stringify(selectorResult),
+        selectedProviderId: textProvider.id,
+        selectorJson: JSON.stringify({ providerTraces: { text: { providerId: textProvider.id }, music: { providerId: musicProvider.id } } }),
         sentinelJson: JSON.stringify(sentinel),
+        policyJson: JSON.stringify(policyResult),
+        onAirGateRequired: policyResult.overall.onAirGateRequired,
+        copyrightRiskTier: policyResult.overall.tier,
         costJson: JSON.stringify({ tokens: 0 }),
         logsJson: JSON.stringify([{ at: new Date().toISOString(), msg: 'Created' }]),
       },
@@ -255,21 +233,26 @@ const prisma = new PrismaClient();
     const artifactPath = path.join(artifactsDir, `$job.id.json`);
     fs.writeFileSync(artifactPath, JSON.stringify({
       jobId: job.id,
-      selectorReason: selectorResult.reason,
-      selectedProvider: { id: provider.id, name: provider.name },
-      providerTrace: providerResult.providerTrace,
-      sentinel,
-      outputs: providerResult.outputs,
+      providerTraces: { text: { providerId: textProvider.id }, music: { providerId: musicProvider.id } },
+      policyTrace: policyResult,
+      outputs,
     }, null, 2));
-    console.log(JSON.stringify({ ok: true, jobId: job.id, artifactPath }));
+    console.log(JSON.stringify({
+      ok: true,
+      jobId: job.id,
+      artifactPath,
+      policyTier: policyResult.overall.tier,
+      gateRequired: policyResult.overall.onAirGateRequired,
+      hasChordProgression: !!outputs.music.music.structure.chordProgression,
+    }));
   } finally {
     await prisma.`$disconnect();
   }
 })();
 "@
-    $sampleJobPath = Join-Path $runDir "sample-job.js"
+    $sampleJobPath = Join-Path $runDir "sample-music-job.js"
     Write-Utf8 $sampleJobPath $sampleJobScript
-    $sampleOutput = Exec "cd apps/api && tsx $sampleJobPath"
+    $sampleOutput = Exec "cd apps/api && node $sampleJobPath"
     if ($sampleOutput.code -eq 0) {
       $jsonMatch = [regex]::Match($sampleOutput.out, '\{[\s\S]*\}')
       if ($jsonMatch.Success) {
@@ -278,7 +261,13 @@ const prisma = new PrismaClient();
           if ($sampleJson.ok) {
             $jobId = $sampleJson.jobId
             $artifactPath = $sampleJson.artifactPath
+            $policyTier = $sampleJson.policyTier
+            $gateRequired = $sampleJson.gateRequired
             Write-Host "Created sample job: $jobId"
+            Write-Host "Policy tier: $policyTier, Gate required: $gateRequired"
+            if (-not $sampleJson.hasChordProgression) {
+              $blockers += "Sample job missing chordProgression"
+            }
           }
         } catch {
           $blockers += "Could not parse sample job output"
@@ -293,7 +282,7 @@ const prisma = new PrismaClient();
   $evidencePath = Join-Path $runDir "evidence.json"
 
   $report = @"
-# ONEPACK V4 SELECTOR (NO-DEV) Report
+# ONEPACK V5 MUSIC + POLICY (NO-DEV) Report
 
 **Timestamp:** $stamp
 **Branch:** $branch
@@ -304,19 +293,22 @@ const prisma = new PrismaClient();
 1. ✅ npm install
 2. ✅ Prisma generate + db push
 3. ✅ Seed database
-4. ✅ Verify providers (>= 3 text providers)
-5. ✅ Test selector (quality/cost/speed)
-6. ✅ Create sample job
+4. ✅ Verify providers and policies
+5. ✅ Test music selector
+6. ✅ Create sample job with music
 
 ## Results
 
-- **Providers Verified:** $providersOk
-- **Selector Results:**
+- **Music Providers Verified:** $providersOk ($(if ($providersOk) { '>= 3' } else { 'FAILED' }))
+- **Policies Verified:** $policiesOk ($(if ($policiesOk) { '>= 4' } else { 'FAILED' }))
+- **Music Selector Results:**
   - Quality: $($selectorResults.quality.providerName)
   - Cost: $($selectorResults.cost.providerName)
   - Speed: $($selectorResults.speed.providerName)
 - **Sample Job ID:** $jobId
 - **Artifact Path:** $artifactPath
+- **Policy Tier:** $policyTier
+- **Gate Required:** $gateRequired
 
 ## Blockers
 
@@ -334,9 +326,12 @@ $(if ($blockers.Count -eq 0) { "✅ PASS" } else { "⚠️ PASS_WITH_BLOCKER" })
     branch = $branch
     commit = $head
     providersOk = $providersOk
+    policiesOk = $policiesOk
     selectorResults = $selectorResults
     jobId = $jobId
     artifactPath = $artifactPath
+    policyTier = $policyTier
+    gateRequired = $gateRequired
     blockers = $blockers
     status = if ($blockers.Count -eq 0) { "PASS" } else { "PASS_WITH_BLOCKER" }
   } | ConvertTo-Json -Depth 10
@@ -345,13 +340,13 @@ $(if ($blockers.Count -eq 0) { "✅ PASS" } else { "⚠️ PASS_WITH_BLOCKER" })
 
   # Step 8: Git Commit + Tag
   Write-Host "=== Step 8: Git Commit + Tag ==="
-  if ($blockers.Count -eq 0 -or ($providersOk -and $jobId)) {
+  if ($blockers.Count -eq 0 -or ($providersOk -and $policiesOk -and $jobId)) {
     Exec "git add -A" | Out-Null
-    $commitResult = Exec "git commit -m ""v1: capability registry + ai selector"""
+    $commitResult = Exec "git commit -m ""v1: music capability + policy ai"""
     if ($commitResult.code -eq 0 -or $commitResult.out -match "nothing to commit") {
       $newCommit = (Exec "git rev-parse --short HEAD").out.Trim()
-      $tag = "v1-selector-$stamp"
-      Exec "git tag -a $tag -m ""V4 Selector: $newCommit ($stamp)""" | Out-Null
+      $tag = "v1-music-policy-$stamp"
+      Exec "git tag -a $tag -m ""V5 Music + Policy: $newCommit ($stamp)""" | Out-Null
 
       # Push best-effort
       $pushOk = $false
@@ -370,8 +365,9 @@ $(if ($blockers.Count -eq 0) { "✅ PASS" } else { "⚠️ PASS_WITH_BLOCKER" })
       Write-Host "Commit: $newCommit"
       Write-Host "Tag: $tag"
       Write-Host "Push: $(if ($pushOk) { 'OK' } else { 'FAILED (local only)' })"
-      Write-Host "Providers: $providersOk"
-      Write-Host "Job ID: $jobId"
+      Write-Host "Sample Job ID: $jobId"
+      Write-Host "Policy Tier: $policyTier"
+      Write-Host "Gate Required: $gateRequired"
       Write-Host "Artifact: $artifactPath"
       Write-Host "Report: $reportPath"
       Write-Host "==============================================="

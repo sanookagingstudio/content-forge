@@ -90,4 +90,6 @@ export const api = {
     options?: { language?: 'th' | 'en'; tone?: string; length?: 'short' | 'medium' | 'long' };
   }) => http<any>(`/v1/jobs/generate`, { method: 'POST', body: JSON.stringify(req) }),
   getJob: (id: string) => http<any>(`/v1/jobs/${id}`),
+  getCapabilities: () => http<any[]>(`/v1/capabilities`),
+  getPolicies: () => http<any[]>(`/v1/policies`),
 };

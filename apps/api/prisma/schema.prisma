@@ -92,6 +92,16 @@ model CapabilityProvider {
   jobs ContentJob[]
 }
 
+model PolicyProfile {
+  id          String   @id @default(cuid())
+  name        String
+  platform    String   // "youtube"|"tiktok"|"facebook"|"instagram"|"line"|"general"
+  rulesJson   String   // JSON: rules + thresholds
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  isActive    Boolean  @default(true)
+}
+
 model ContentJob {
   id                String    @id @default(cuid())
   planId            String
@@ -102,6 +112,9 @@ model ContentJob {
   selectedProviderId String?
   selectorJson      String    @default("{}") // reason, score, chosen
   sentinelJson      String    @default("{}") // optional enrichment signals
+  policyJson        String    @default("{}") // policy evaluation results
+  onAirGateRequired Boolean   @default(false) // hard gate marker
+  copyrightRiskTier String    @default("unknown") // "low"|"medium"|"high"|"unknown"
   costJson          String
   logsJson          String
   createdAt         DateTime  @default(now())

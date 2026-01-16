@@ -54,6 +54,25 @@ program
   });
 
 program
+  .command('policies')
+  .description('List policy profiles')
+  .command('list')
+  .action(async () => {
+    try {
+      const res = await http('/v1/policies');
+      if (res.status === 200 && res.json.ok) {
+        console.log(JSON.stringify(res.json.data, null, 2));
+      } else {
+        console.error(JSON.stringify({ ok: false, error: 'API unavailable', apiBase }, null, 2));
+        process.exit(1);
+      }
+    } catch (e: any) {
+      console.error(JSON.stringify({ ok: false, error: e.message, apiBase, note: 'API unavailable - ensure dev server is running' }, null, 2));
+      process.exit(1);
+    }
+  });
+
+program
   .command('plan')
   .description('Plan operations')
   .command('import')
@@ -119,6 +138,70 @@ program
       const r = await http('/v1/jobs/generate', { method: 'POST', body: JSON.stringify(body) });
       if (r.status === 201 && r.json.ok) {
         console.log(JSON.stringify({ ok: true, apiBase, result: r.json.data }, null, 2));
+      } else {
+        console.error(JSON.stringify({ ok: false, error: r.json.error || 'API error', apiBase, result: r }, null, 2));
+        process.exit(1);
+      }
+    } catch (e: any) {
+      console.error(JSON.stringify({ ok: false, error: e.message, apiBase, note: 'API unavailable - ensure dev server is running' }, null, 2));
+      process.exit(1);
+    }
+  });
+
+program
+  .command('music')
+  .description('Music generation')
+  .command('generate')
+  .option('--brandId <id>', 'Brand ID')
+  .option('--topic <topic>', 'Topic (required)')
+  .option('--style <style>', 'Style', 'ไทยร่วมสมัย')
+  .option('--objective <quality|cost|speed>', 'Objective', 'quality')
+  .option('--platforms <platforms>', 'Comma-separated platforms', 'youtube,tiktok')
+  .option('--mood <happy|serene|epic|sad>', 'Mood', 'happy')
+  .option('--duration <seconds>', 'Duration in seconds', '30')
+  .action(async (opts) => {
+    if (!opts.brandId) {
+      console.error(JSON.stringify({ ok: false, error: '--brandId is required' }, null, 2));
+      process.exit(1);
+    }
+    if (!opts.topic) {
+      console.error(JSON.stringify({ ok: false, error: '--topic is required' }, null, 2));
+      process.exit(1);
+    }
+
+    const platforms = opts.platforms.split(',').map((p: string) => p.trim());
+    const body: any = {
+      brandId: opts.brandId,
+      topic: opts.topic,
+      objective: opts.objective,
+      platforms,
+      assetKinds: ['text', 'music'],
+      musicOptions: {
+        mood: opts.mood,
+        style: opts.style,
+        durationSec: parseInt(opts.duration, 10),
+      },
+      options: {
+        language: 'th',
+        policy: 'strict',
+      },
+    };
+
+    try {
+      const r = await http('/v1/jobs/generate', { method: 'POST', body: JSON.stringify(body) });
+      if (r.status === 201 && r.json.ok) {
+        const data = r.json.data;
+        const musicOutput = data.outputs?.music;
+        const policyTrace = data.policyTrace;
+        console.log(JSON.stringify({
+          ok: true,
+          jobId: data.id,
+          musicProvider: data.providerTraces?.music?.providerName,
+          chordProgression: musicOutput?.structure?.chordProgression,
+          policyTier: policyTrace?.overall?.tier,
+          gateRequired: policyTrace?.overall?.onAirGateRequired,
+          result: data,
+        }, null, 2));
       } else {
         console.error(JSON.stringify({ ok: false, error: r.json.error || 'API error', apiBase, result: r }, null, 2));
         process.exit(1);

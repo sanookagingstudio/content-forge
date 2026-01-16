@@ -1,6 +1,6 @@
 // Capability Provider Types
 
-export type ProviderKind = 'text' | 'image' | 'video';
+export type ProviderKind = 'text' | 'image' | 'video' | 'music';
 
 export type CostTier = 'cheap' | 'standard' | 'premium';
 export type QualityTier = 'fast' | 'standard' | 'hq';

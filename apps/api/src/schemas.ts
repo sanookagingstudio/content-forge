@@ -42,6 +42,15 @@ export const JobGenerateSchema = z.object({
   topic: z.string().min(1),
   objective: z.enum(['quality', 'cost', 'speed']).default('quality'),
   platforms: z.array(z.enum(['facebook', 'instagram', 'tiktok', 'youtube'])).default(['facebook']),
+  assetKinds: z.array(z.enum(['text', 'image', 'video', 'music'])).default(['text']),
+  musicOptions: z.object({
+    task: z.enum(['bgm', 'jingle', 'chord_extract', 'style_transform']).optional(),
+    mood: z.enum(['happy', 'serene', 'epic', 'sad']).optional(),
+    tempoBpm: z.number().optional(),
+    durationSec: z.number().optional(),
+    style: z.string().optional(),
+    referenceLink: z.string().optional(),
+  }).optional(),
   options: z.object({
     language: z.enum(['th','en']).default('th'),
     deterministicSeed: z.string().optional(),
