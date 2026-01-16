@@ -39,7 +39,7 @@ program
     const raw = fs.readFileSync(full, 'utf8');
     const payload = JSON.parse(raw);
     const plans = payload.plans || [];
-    const results: any[] = [];
+    const results: unknown[] = [];
     for (const p of plans) {
       const r = await http('/v1/plans', { method: 'POST', body: JSON.stringify(p) });
       results.push(r);
