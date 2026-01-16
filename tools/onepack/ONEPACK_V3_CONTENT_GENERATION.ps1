@@ -294,18 +294,23 @@ $(if($blockers.Count -gt 0){($blockers | ForEach-Object { "- $_" }) -join "`r`n"
   # ---- Commit + Tag
   if($allGreen -or $true){
     Exec "git add -A" | Out-Null
-    Exec "git commit -m ""v1: real content generation (thai + jarvis)""" | Out-Null
-    $newCommit = (Exec "git rev-parse --short HEAD").out.Trim()
-    $tag = "v1-content-generation-$stamp"
-    Exec "git tag -a $tag -m ""V3 Content Generation: $newCommit ($stamp)""" | Out-Null
+    $commitResult = Exec "git commit -m ""v1: real content generation (thai + jarvis)""" 2>&1
+    if($commitResult.code -eq 0 -or $commitResult.out -match "nothing to commit"){
+      $newCommit = (Exec "git rev-parse --short HEAD").out.Trim()
+      $tag = "v1-content-generation-$stamp"
+      Exec "git tag -a $tag -m ""V3 Content Generation: $newCommit ($stamp)""" | Out-Null
 
-    # Push best-effort
-    try {
-      Exec "git push" | Out-Null
-      Exec "git push origin $tag" | Out-Null
-      $pushOk = $true
-    } catch {
-      $pushOk = $false
+      # Push best-effort
+      try {
+        Exec "git push" | Out-Null
+        Exec "git push origin $tag" | Out-Null
+        $pushOk = $true
+      } catch {
+        $pushOk = $false
+      }
+    } else {
+      $newCommit = $head
+      $tag = "N/A (commit failed)"
     }
   } else {
     $newCommit = $head
