@@ -48,4 +48,7 @@ export const JobGenerateSchema = z.object({
     tone: z.string().optional(),
     length: z.enum(['short', 'medium', 'long']).optional(),
   }).default({ language: 'th' }),
+}).refine((data) => data.planId || data.brandId, {
+  message: "Either planId or brandId must be provided",
+  path: ["brandId"],
 });

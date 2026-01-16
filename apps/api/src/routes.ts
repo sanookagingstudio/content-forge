@@ -164,7 +164,7 @@ export async function registerRoutes(app: FastifyInstance) {
         }
       } else {
         reply.code(400);
-        return apiError('BAD_REQUEST', 'Either planId or brandId must be provided');
+        return apiError('VALIDATION_ERROR', 'Either planId or brandId must be provided');
       }
 
       if (body.personaId) {
@@ -245,9 +245,13 @@ export async function registerRoutes(app: FastifyInstance) {
           artifactPath 
         } 
       };
-    } catch (e) {
+    } catch (e: any) {
       reply.code(400);
-      return fromZod(e);
+      if (e instanceof Error && e.name === 'ZodError') {
+        return fromZod(e);
+      }
+      app.log.error({ error: e, message: e?.message, stack: e?.stack }, 'Job generation error');
+      return apiError('UNKNOWN_ERROR', e?.message || 'Unexpected error', e);
     }
   });
 
