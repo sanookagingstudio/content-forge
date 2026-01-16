@@ -105,7 +105,6 @@ try {
 
   # ---- Step 2: Prisma Generate + Migrate
   Write-Host "=== Step 2: Prisma Generate + Migrate ==="
-  $env:DATABASE_URL = "file:./apps/api/prisma/dev.db"
   try {
     Exec "npm --prefix apps/api run db:generate" | Out-Null
     $migrateCmd = "cd apps/api && set DATABASE_URL=file:./prisma/dev.db && npm run db:migrate"
@@ -124,6 +123,7 @@ try {
   $devErrPath = Join-Path $runDir "dev.err.log"
 
   try {
+    # Set DATABASE_URL for the dev process (relative to apps/api)
     $env:DATABASE_URL = "file:./apps/api/prisma/dev.db"
     $devProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c set DATABASE_URL=file:./apps/api/prisma/dev.db && npm run dev" -WorkingDirectory (Get-Location).Path -PassThru -RedirectStandardOutput $devOutPath -RedirectStandardError $devErrPath
     Start-Sleep -Seconds 8

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from './db';
 import { apiError, fromZod } from './errors';
+import { ZodError } from 'zod';
 import {
   BrandCreateSchema,
   PersonaCreateSchema,
@@ -39,9 +40,14 @@ export async function registerRoutes(app: FastifyInstance) {
       });
       reply.code(201);
       return { ok: true, data: { ...created, channels: body.channels } };
-    } catch (e) {
+    } catch (e: any) {
       reply.code(400);
-      return fromZod(e);
+      if (e instanceof Error && e.name === 'ZodError') {
+        return fromZod(e);
+      }
+      // Log actual error for debugging
+      app.log.error({ error: e, message: e?.message, stack: e?.stack }, 'Brand creation error');
+      return apiError('UNKNOWN_ERROR', e?.message || 'Unexpected error', e);
     }
   });
 
